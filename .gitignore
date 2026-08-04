@@ -36,6 +36,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Local demo workspace
+.dev/
+
 # Go build and test output
 /terraform-provider-podlet
 /podlet-provider

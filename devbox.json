@@ -39,6 +39,9 @@
         "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet",
         "git diff --exit-code -- docs"
       ],
+      "dev": [
+        "sh scripts/dev-demo.sh"
+      ],
       "integration": [
         "go test -tags=integration ./internal/remote -run TestSSHIntegration -v"
       ],

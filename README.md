@@ -130,6 +130,21 @@ Values in `spec.environment` are marked sensitive in CLI output, but OpenTofu
 still stores them in state. Prefer a remote `environment_files` entry or a
 separate secret-delivery mechanism for credentials.
 
+## Local Demo
+
+`devbox run dev` builds the provider and runs a hello-world container against a
+rootless Podman host. It targets `127.0.0.1` with the current user by default;
+override with `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, and `PODLET_DEMO_PORT`.
+The host needs passwordless SSH key authentication, Podman, and user systemd
+lingering:
+
+```shell
+sudo loginctl enable-linger "$USER"
+```
+
+The demo applies the container in `examples/demo`, prints the served greeting,
+and destroys everything on exit. Set `PODLET_DEMO_KEEP=1` to leave it running.
+
 ## Development
 
 Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/), then run:
