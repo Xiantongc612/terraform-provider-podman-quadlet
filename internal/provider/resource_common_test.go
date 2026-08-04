@@ -79,6 +79,61 @@ func TestManagedLifecycle(t *testing.T) {
 	}
 }
 
+func TestManagedLifecycleSystemMode(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeRemote{files: make(map[string][]byte)}
+	managed := managedResource{
+		client:           client,
+		quadletDirectory: "/etc/containers/systemd",
+		systemctlPrefix:  "sudo systemctl",
+		installTarget:    "multi-user.target",
+	}
+	content := quadlet.Render(quadlet.Section{Name: "Network"})
+	status, err := managed.apply(
+		context.Background(),
+		"/etc/containers/systemd/example.network",
+		"example-network.service",
+		content,
+		true,
+	)
+	if err != nil {
+		t.Fatalf("apply returned an error: %v", err)
+	}
+	if status.ActiveState.ValueString() != "active" {
+		t.Fatalf("unexpected status: %#v", status)
+	}
+	for _, command := range client.commands {
+		if !strings.HasPrefix(command, "sudo systemctl ") {
+			t.Errorf("expected sudo systemctl command, got %q", command)
+		}
+	}
+	if err := managed.delete(
+		context.Background(),
+		"/etc/containers/systemd/example.network",
+		"example-network.service",
+	); err != nil {
+		t.Fatalf("delete returned an error: %v", err)
+	}
+}
+
+func TestInstallSectionTarget(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		target   string
+		expected string
+	}{
+		{"default.target", "WantedBy=default.target"},
+		{"multi-user.target", "WantedBy=multi-user.target"},
+	} {
+		rendered := quadlet.Render(installSection(test.target))
+		if !strings.Contains(string(rendered), test.expected) {
+			t.Errorf("install section for %q does not contain %q:\n%s", test.target, test.expected, rendered)
+		}
+	}
+}
+
 func TestManagedLifecycleProtectsUnmanagedFiles(t *testing.T) {
 	t.Parallel()
 

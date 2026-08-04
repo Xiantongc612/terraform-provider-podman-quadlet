@@ -4,8 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 func TestMetadata(t *testing.T) {
@@ -41,5 +44,170 @@ func TestSchemasAreValid(t *testing.T) {
 		if diagnostics := schemaResp.Schema.ValidateImplementation(ctx); diagnostics.HasError() {
 			t.Errorf("invalid %s schema: %v", metadataResp.TypeName, diagnostics)
 		}
+	}
+}
+
+var providerAttributeTypes = map[string]attr.Type{
+	"host":                     types.StringType,
+	"user":                     types.StringType,
+	"port":                     types.Int64Type,
+	"private_key_path":         types.StringType,
+	"known_hosts_path":         types.StringType,
+	"use_agent":                types.BoolType,
+	"insecure_ignore_host_key": types.BoolType,
+	"connection_timeout":       types.StringType,
+	"quadlet_directory":        types.StringType,
+	"mode":                     types.StringType,
+	"sudo":                     types.BoolType,
+}
+
+func configureResponse(ctx context.Context, values map[string]attr.Value) *provider.ConfigureResponse {
+	var schemaResp provider.SchemaResponse
+	New("test")().Schema(ctx, provider.SchemaRequest{}, &schemaResp)
+
+	attributes := map[string]attr.Value{
+		"host":                     types.StringValue("edge.example.com"),
+		"user":                     types.StringValue("containers"),
+		"port":                     types.Int64Null(),
+		"private_key_path":         types.StringNull(),
+		"known_hosts_path":         types.StringNull(),
+		"use_agent":                types.BoolNull(),
+		"insecure_ignore_host_key": types.BoolNull(),
+		"connection_timeout":       types.StringNull(),
+		"quadlet_directory":        types.StringNull(),
+		"mode":                     types.StringNull(),
+		"sudo":                     types.BoolNull(),
+	}
+	for key, value := range values {
+		attributes[key] = value
+	}
+	config := types.ObjectValueMust(providerAttributeTypes, attributes)
+	raw, err := config.ToTerraformValue(ctx)
+	if err != nil {
+		panic(err)
+	}
+	request := provider.ConfigureRequest{
+		Config: tfsdk.Config{Raw: raw, Schema: schemaResp.Schema},
+	}
+	var response provider.ConfigureResponse
+	New("test")().Configure(ctx, request, &response)
+	return &response
+}
+
+func configureData(t *testing.T, values map[string]attr.Value) *providerData {
+	t.Helper()
+	response := configureResponse(context.Background(), values)
+	if response.Diagnostics.HasError() {
+		t.Fatalf("configure diagnostics: %v", response.Diagnostics)
+	}
+	data, ok := response.ResourceData.(*providerData)
+	if !ok {
+		t.Fatalf("expected *providerData, got %T", response.ResourceData)
+	}
+	return data
+}
+
+func TestConfigureDefaultsToUserMode(t *testing.T) {
+	t.Parallel()
+
+	data := configureData(t, nil)
+	if data.quadletDirectory != ".config/containers/systemd" {
+		t.Fatalf("unexpected quadlet directory %q", data.quadletDirectory)
+	}
+	if data.systemctlPrefix != "systemctl --user" {
+		t.Fatalf("unexpected systemctl prefix %q", data.systemctlPrefix)
+	}
+	if data.installTarget != "default.target" {
+		t.Fatalf("unexpected install target %q", data.installTarget)
+	}
+}
+
+func TestConfigureSystemModeWithSudo(t *testing.T) {
+	t.Parallel()
+
+	data := configureData(t, map[string]attr.Value{
+		"mode": types.StringValue("system"),
+		"sudo": types.BoolValue(true),
+	})
+	if data.quadletDirectory != "/etc/containers/systemd" {
+		t.Fatalf("unexpected quadlet directory %q", data.quadletDirectory)
+	}
+	if data.systemctlPrefix != "sudo systemctl" {
+		t.Fatalf("unexpected systemctl prefix %q", data.systemctlPrefix)
+	}
+	if data.installTarget != "multi-user.target" {
+		t.Fatalf("unexpected install target %q", data.installTarget)
+	}
+}
+
+func TestConfigureSystemModeAsRoot(t *testing.T) {
+	t.Parallel()
+
+	data := configureData(t, map[string]attr.Value{
+		"mode": types.StringValue("system"),
+		"sudo": types.BoolValue(false),
+		"user": types.StringValue("root"),
+	})
+	if data.systemctlPrefix != "systemctl" {
+		t.Fatalf("unexpected systemctl prefix %q", data.systemctlPrefix)
+	}
+}
+
+func TestConfigureRejectsSudoInUserMode(t *testing.T) {
+	t.Parallel()
+
+	response := configureResponse(context.Background(), map[string]attr.Value{
+		"mode": types.StringValue("user"),
+		"sudo": types.BoolValue(true),
+	})
+	if !response.Diagnostics.HasError() {
+		t.Fatal("expected sudo-in-user-mode error")
+	}
+}
+
+func TestConfigureRejectsInvalidMode(t *testing.T) {
+	t.Parallel()
+
+	response := configureResponse(context.Background(), map[string]attr.Value{
+		"mode": types.StringValue("hybrid"),
+	})
+	if !response.Diagnostics.HasError() {
+		t.Fatal("expected invalid-mode error")
+	}
+}
+
+func TestConfigureRejectsSystemModeWithoutSudoForNonRoot(t *testing.T) {
+	t.Parallel()
+
+	response := configureResponse(context.Background(), map[string]attr.Value{
+		"mode": types.StringValue("system"),
+		"sudo": types.BoolValue(false),
+	})
+	if !response.Diagnostics.HasError() {
+		t.Fatal("expected root-login requirement error")
+	}
+}
+
+func TestConfigureRejectsRelativeSystemDirectory(t *testing.T) {
+	t.Parallel()
+
+	response := configureResponse(context.Background(), map[string]attr.Value{
+		"mode":              types.StringValue("system"),
+		"sudo":              types.BoolValue(true),
+		"quadlet_directory": types.StringValue("etc/containers/systemd"),
+	})
+	if !response.Diagnostics.HasError() {
+		t.Fatal("expected relative-system-directory error")
+	}
+}
+
+func TestConfigureRejectsTraversalInUserMode(t *testing.T) {
+	t.Parallel()
+
+	response := configureResponse(context.Background(), map[string]attr.Value{
+		"quadlet_directory": types.StringValue("../etc/containers/systemd"),
+	})
+	if !response.Diagnostics.HasError() {
+		t.Fatal("expected traversal error")
 	}
 }
