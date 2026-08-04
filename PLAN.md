@@ -31,8 +31,11 @@ an in-process SSH server test in the remote package.
 
 `devbox run dev` builds the provider and runs a small hello-world demo against a
 rootless Podman host. It targets `127.0.0.1` with the current user by default.
-Configuration is read from a gitignored `.env.op` file (template in
-`.env.op.example`); `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, `PODLET_DEMO_PORT`,
+Configuration is read from the gitignored `.env.op` file through the 1Password
+CLI: when `op` is installed the demo re-executes under
+`op run --env-file=.env.op`, so secret references such as
+`PODLET_DEMO_PASSWORD=op://Vault/Item/field` are resolved ephemerally and never
+persisted. `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, `PODLET_DEMO_PORT`,
 `PODLET_DEMO_KEY_PATH`, `PODLET_DEMO_PASSWORD`, and `PODLET_DEMO_KEEP` are
 supported. The demo requires Podman and user systemd lingering
 (`sudo loginctl enable-linger $USER`) on the host. It applies the container in

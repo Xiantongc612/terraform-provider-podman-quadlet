@@ -134,9 +134,13 @@ separate secret-delivery mechanism for credentials.
 
 `devbox run dev` builds the provider and runs a hello-world container against a
 rootless Podman host. It targets `127.0.0.1` with the current user by default.
-Configuration is read from `.env.op` (gitignored; see `.env.op.example` for the
-template) and overridable with `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`,
-`PODLET_DEMO_PORT`, `PODLET_DEMO_KEY_PATH`, and `PODLET_DEMO_PASSWORD`. The host
+
+Configuration lives in `.env.op`, consumed through the 1Password CLI. When
+`op` is installed the demo re-executes under `op run --env-file=.env.op` so
+secret references like `PODLET_DEMO_PASSWORD=op://Vault/Item/field` are resolved
+ephemerally and never written to disk. Supported variables are
+`PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, `PODLET_DEMO_PORT`,
+`PODLET_DEMO_KEY_PATH`, `PODLET_DEMO_PASSWORD`, and `PODLET_DEMO_KEEP`. The host
 needs Podman and user systemd lingering:
 
 ```shell
