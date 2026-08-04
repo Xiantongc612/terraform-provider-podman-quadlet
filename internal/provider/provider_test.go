@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Xiantongc612/podlet-provider/internal/remote"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -52,6 +53,7 @@ var providerAttributeTypes = map[string]attr.Type{
 	"user":                     types.StringType,
 	"port":                     types.Int64Type,
 	"private_key_path":         types.StringType,
+	"password":                 types.StringType,
 	"known_hosts_path":         types.StringType,
 	"use_agent":                types.BoolType,
 	"insecure_ignore_host_key": types.BoolType,
@@ -70,6 +72,7 @@ func configureResponse(ctx context.Context, values map[string]attr.Value) *provi
 		"user":                     types.StringValue("containers"),
 		"port":                     types.Int64Null(),
 		"private_key_path":         types.StringNull(),
+		"password":                 types.StringNull(),
 		"known_hosts_path":         types.StringNull(),
 		"use_agent":                types.BoolNull(),
 		"insecure_ignore_host_key": types.BoolNull(),
@@ -209,5 +212,16 @@ func TestConfigureRejectsTraversalInUserMode(t *testing.T) {
 	})
 	if !response.Diagnostics.HasError() {
 		t.Fatal("expected traversal error")
+	}
+}
+
+func TestConfigureAcceptsPassword(t *testing.T) {
+	t.Parallel()
+
+	data := configureData(t, map[string]attr.Value{
+		"password": types.StringValue("hunter2"),
+	})
+	if _, ok := data.client.(*remote.SSHClient); !ok {
+		t.Fatalf("expected *remote.SSHClient, got %T", data.client)
 	}
 }

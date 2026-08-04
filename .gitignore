@@ -36,7 +36,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# Local demo workspace
+# Local demo configuration and workspace
+.env.op
 .dev/
 
 # Go build and test output

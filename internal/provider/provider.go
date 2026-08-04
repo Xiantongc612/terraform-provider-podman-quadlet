@@ -31,6 +31,7 @@ type providerModel struct {
 	User                  types.String `tfsdk:"user"`
 	Port                  types.Int64  `tfsdk:"port"`
 	PrivateKeyPath        types.String `tfsdk:"private_key_path"`
+	Password              types.String `tfsdk:"password"`
 	KnownHostsPath        types.String `tfsdk:"known_hosts_path"`
 	UseAgent              types.Bool   `tfsdk:"use_agent"`
 	InsecureIgnoreHostKey types.Bool   `tfsdk:"insecure_ignore_host_key"`
@@ -88,6 +89,11 @@ func (p *PodletProvider) Schema(
 			"private_key_path": schema.StringAttribute{
 				Optional:    true,
 				Description: "Path to an unencrypted SSH private key.",
+			},
+			"password": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				Description: "SSH password for authentication. An alternative to an SSH agent or private key.",
 			},
 			"known_hosts_path": schema.StringAttribute{
 				Optional:    true,
@@ -240,6 +246,10 @@ func (p *PodletProvider) Configure(
 	if !config.PrivateKeyPath.IsNull() && !config.PrivateKeyPath.IsUnknown() {
 		privateKeyPath = config.PrivateKeyPath.ValueString()
 	}
+	password := ""
+	if !config.Password.IsNull() && !config.Password.IsUnknown() {
+		password = config.Password.ValueString()
+	}
 	knownHostsPath := "~/.ssh/known_hosts"
 	if !config.KnownHostsPath.IsNull() && !config.KnownHostsPath.IsUnknown() {
 		knownHostsPath = config.KnownHostsPath.ValueString()
@@ -250,6 +260,7 @@ func (p *PodletProvider) Configure(
 		User:                  config.User.ValueString(),
 		Port:                  int(port),
 		PrivateKeyPath:        privateKeyPath,
+		Password:              password,
 		KnownHostsPath:        knownHostsPath,
 		UseAgent:              useAgent,
 		InsecureIgnoreHostKey: insecureIgnoreHostKey,

@@ -20,10 +20,17 @@ variable "private_key_path" {
   default = ""
 }
 
+variable "password" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
 provider "podlet" {
   host             = var.host
   user             = var.user
   private_key_path = var.private_key_path
+  password         = var.password
 }
 
 resource "podlet_container" "hello" {

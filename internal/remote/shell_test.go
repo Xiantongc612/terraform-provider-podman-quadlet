@@ -53,6 +53,32 @@ func TestNewSSHClientModeValidation(t *testing.T) {
 	}
 }
 
+func TestNewSSHClientPasswordAuth(t *testing.T) {
+	t.Parallel()
+
+	config := SSHConfig{
+		Host:                  "example.com",
+		User:                  "containers",
+		Port:                  22,
+		UseAgent:              false,
+		Password:              "hunter2",
+		InsecureIgnoreHostKey: true,
+		Timeout:               30 * time.Second,
+	}
+	client, err := NewSSHClient(config)
+	if err != nil {
+		t.Fatalf("create password client: %v", err)
+	}
+	if client.config.Password != "hunter2" {
+		t.Fatalf("password not stored on client: %q", client.config.Password)
+	}
+
+	config.Password = ""
+	if _, err := NewSSHClient(config); err == nil {
+		t.Fatal("expected auth-method error when use_agent is false without a key or password")
+	}
+}
+
 func withMode(config SSHConfig, mode string) SSHConfig {
 	config.Mode = mode
 	return config

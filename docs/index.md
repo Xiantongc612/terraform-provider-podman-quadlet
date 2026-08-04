@@ -25,6 +25,7 @@ Manage Podman Quadlets on a remote machine.
 - `insecure_ignore_host_key` (Boolean) Disable SSH host-key verification. Defaults to false.
 - `known_hosts_path` (String) Path to an OpenSSH known_hosts file. Defaults to ~/.ssh/known_hosts.
 - `mode` (String) Manage user (rootless) or system (rootful) Quadlets and systemd. Defaults to user.
+- `password` (String, Sensitive) SSH password for authentication. An alternative to an SSH agent or private key.
 - `port` (Number) SSH port. Defaults to 22.
 - `private_key_path` (String) Path to an unencrypted SSH private key.
 - `quadlet_directory` (String) Remote Quadlet directory. In user mode this is relative to the user's home and defaults to .config/containers/systemd; in system mode it must be absolute and defaults to /etc/containers/systemd.

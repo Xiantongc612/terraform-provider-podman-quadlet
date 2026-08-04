@@ -21,15 +21,23 @@ mode-dependent behavior:
 - The `Client` interface stays unchanged; elevation branches inside SSHClient
   and the provider lifecycle layer.
 
+## Implemented: SSH password authentication
+
+A `password` provider attribute enables password-based SSH logins, alongside
+the existing agent and unencrypted-key methods. Authentication is exercised by
+an in-process SSH server test in the remote package.
+
 ## Local Demo
 
 `devbox run dev` builds the provider and runs a small hello-world demo against a
-rootless Podman host. It targets `127.0.0.1` with the current user by default;
-set `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, and `PODLET_DEMO_PORT` to point at
-another host. The demo requires passwordless SSH key authentication, Podman,
-and user systemd lingering (`sudo loginctl enable-linger $USER`) on that host.
-It applies the container in `examples/demo`, prints the served greeting, then
-destroys everything on exit unless `PODLET_DEMO_KEEP=1` is set.
+rootless Podman host. It targets `127.0.0.1` with the current user by default.
+Configuration is read from a gitignored `.env.op` file (template in
+`.env.op.example`); `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, `PODLET_DEMO_PORT`,
+`PODLET_DEMO_KEY_PATH`, `PODLET_DEMO_PASSWORD`, and `PODLET_DEMO_KEEP` are
+supported. The demo requires Podman and user systemd lingering
+(`sudo loginctl enable-linger $USER`) on the host. It applies the container in
+`examples/demo`, prints the served greeting, then destroys everything on exit
+unless `PODLET_DEMO_KEEP=1` is set.
 
 ## Registry Publishing Plan (approved)
 
@@ -72,7 +80,7 @@ release tooling, six platform targets (`linux`/`darwin`/`windows` ×
 
 ## Deferred Decisions
 
-- Password-based SSH authentication, encrypted private keys, and jump hosts.
+- Encrypted private keys and jump hosts.
 - Quadlet pod, image, build, kube, and artifact resources.
 - A generic manifest escape hatch for unsupported Quadlet directives.
 - Secret delivery that does not persist values in OpenTofu state.

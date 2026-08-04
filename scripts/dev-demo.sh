@@ -4,9 +4,17 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+if [ -f "$repo_root/.env.op" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$repo_root/.env.op"
+  set +a
+fi
+
 host="${PODLET_DEMO_HOST:-127.0.0.1}"
 user="${PODLET_DEMO_USER:-$(whoami)}"
 demo_port="${PODLET_DEMO_PORT:-18080}"
+password="${PODLET_DEMO_PASSWORD:-}"
 workspace="${repo_root}/.dev/demo"
 
 for tool in go tofu ssh curl; do
@@ -19,12 +27,27 @@ done
 echo "==> Building terraform-provider-podlet"
 go build -o terraform-provider-podlet .
 
-echo "==> Checking passwordless SSH access to $user@$host"
-ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
-  "$user@$host" 'true' || {
-  echo "error: passwordless SSH key authentication to $user@$host is required" >&2
-  exit 1
-}
+echo "==> Checking SSH access to $user@$host"
+if [ -n "$password" ]; then
+  if command -v sshpass >/dev/null 2>&1; then
+    sshpass -p "$password" ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+      "$user@$host" 'true' || {
+      echo "error: SSH login with the configured password failed" >&2
+      exit 1
+    }
+  else
+    echo "note: sshpass not installed; recording the host key and letting the provider authenticate"
+    ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+      "$user@$host" 'true' >/dev/null 2>&1 || true
+  fi
+else
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+    "$user@$host" 'true' || {
+    echo "error: passwordless SSH key authentication to $user@$host is required" >&2
+    echo "set PODLET_DEMO_PASSWORD in .env.op to use password authentication instead" >&2
+    exit 1
+  }
+fi
 
 echo "==> Checking remote Podman"
 ssh -o BatchMode=yes -o ConnectTimeout=10 "$user@$host" \
@@ -42,10 +65,8 @@ if [ "$linger" != "yes" ]; then
   exit 1
 fi
 
-key_path=""
-if [ -n "${PODLET_DEMO_KEY_PATH:-}" ]; then
-  key_path="$PODLET_DEMO_KEY_PATH"
-else
+key_path="${PODLET_DEMO_KEY_PATH:-}"
+if [ -z "$key_path" ] && [ -z "$password" ]; then
   for candidate in id_ed25519 id_ecdsa id_rsa; do
     if [ -f "$HOME/.ssh/$candidate" ]; then
       key_path="~/.ssh/$candidate"
@@ -76,7 +97,8 @@ cleanup() {
     echo
     echo "==> Destroying the hello demo"
     run_demo destroy -auto-approve \
-      -var "host=$host" -var "user=$user" -var "private_key_path=$key_path" >/dev/null 2>&1 || true
+      -var "host=$host" -var "user=$user" -var "private_key_path=$key_path" \
+      -var "password=$password" >/dev/null 2>&1 || true
   fi
   rm -rf "$workspace"
 }
@@ -87,7 +109,8 @@ run_demo init -input=false >/dev/null 2>&1 || true
 
 echo "==> Applying the hello demo"
 run_demo apply -auto-approve \
-  -var "host=$host" -var "user=$user" -var "private_key_path=$key_path"
+  -var "host=$host" -var "user=$user" -var "private_key_path=$key_path" \
+  -var "password=$password"
 
 echo "==> Waiting for the container to serve HTTP"
 served=false
@@ -111,5 +134,5 @@ fi
 if [ "${PODLET_DEMO_KEEP:-0}" = "1" ]; then
   echo
   echo "==> Demo left running (PODLET_DEMO_KEEP=1)"
-  echo "destroy it with: cd .dev/demo && TF_CLI_CONFIG_FILE=demo.tfrc tofu destroy -auto-approve -var host=$host -var user=$user"
+  echo "destroy it with: cd .dev/demo && TF_CLI_CONFIG_FILE=demo.tfrc tofu destroy -auto-approve -var host=$host -var user=$user -var password=$password"
 fi

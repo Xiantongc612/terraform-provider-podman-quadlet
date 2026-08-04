@@ -36,6 +36,7 @@ type SSHConfig struct {
 	Timeout               time.Duration
 	Mode                  string
 	Sudo                  bool
+	Password              string
 }
 
 // SSHClient performs remote operations using a new SSH connection per operation.
@@ -67,8 +68,8 @@ func NewSSHClient(config SSHConfig) (*SSHClient, error) {
 	if config.Timeout <= 0 {
 		return nil, errors.New("timeout must be greater than zero")
 	}
-	if !config.UseAgent && config.PrivateKeyPath == "" {
-		return nil, errors.New("private_key_path is required when use_agent is false")
+	if !config.UseAgent && config.PrivateKeyPath == "" && config.Password == "" {
+		return nil, errors.New("private_key_path or password is required when use_agent is false")
 	}
 	if !config.InsecureIgnoreHostKey && config.KnownHostsPath == "" {
 		return nil, errors.New("known_hosts_path is required unless host key verification is disabled")
@@ -111,8 +112,17 @@ func (c *SSHClient) dial(ctx context.Context) (*ssh.Client, error) {
 }
 
 func (c *SSHClient) authMethods() ([]ssh.AuthMethod, func(), error) {
-	methods := make([]ssh.AuthMethod, 0, 2)
+	methods := make([]ssh.AuthMethod, 0, 4)
 	cleanup := func() {}
+
+	if c.config.Password != "" {
+		methods = append(methods, ssh.Password(c.config.Password))
+		methods = append(methods, ssh.KeyboardInteractive(
+			func(_ string, _ string, _ []string, _ []bool) ([]string, error) {
+				return []string{c.config.Password}, nil
+			},
+		))
+	}
 
 	if c.config.PrivateKeyPath != "" {
 		key, err := os.ReadFile(expandHome(c.config.PrivateKeyPath))
