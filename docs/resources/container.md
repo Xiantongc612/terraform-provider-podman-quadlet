@@ -3,12 +3,12 @@
 page_title: "podlet_container Resource - podlet"
 subcategory: ""
 description: |-
-  Manages a rootless Podman Quadlet container and systemd service.
+  Manages a Podman Quadlet container and systemd service.
 ---
 
 # podlet_container (Resource)
 
-Manages a rootless Podman Quadlet container and systemd service.
+Manages a Podman Quadlet container and systemd service.
 
 
 

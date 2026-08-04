@@ -25,6 +25,14 @@ func TestSSHIntegration(t *testing.T) {
 		}
 		port = parsed
 	}
+	mode := ModeUser
+	if value := os.Getenv("PODLET_TEST_MODE"); value != "" {
+		if value != ModeUser && value != ModeSystem {
+			t.Fatalf("invalid PODLET_TEST_MODE %q", value)
+		}
+		mode = value
+	}
+	sudo := os.Getenv("PODLET_TEST_SUDO") == "true"
 	client, err := NewSSHClient(SSHConfig{
 		Host:           host,
 		User:           user,
@@ -33,13 +41,19 @@ func TestSSHIntegration(t *testing.T) {
 		KnownHostsPath: valueOrDefault(os.Getenv("PODLET_TEST_KNOWN_HOSTS_PATH"), "~/.ssh/known_hosts"),
 		UseAgent:       true,
 		Timeout:        30 * time.Second,
+		Mode:           mode,
+		Sudo:           sudo,
 	})
 	if err != nil {
 		t.Fatalf("create SSH client: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	if _, err := client.Run(ctx, "podman --version && systemctl --user --version"); err != nil {
+	prerequisites := "podman --version"
+	if mode == ModeUser {
+		prerequisites += " && systemctl --user --version"
+	}
+	if _, err := client.Run(ctx, prerequisites); err != nil {
 		t.Fatalf("verify remote prerequisites: %v", err)
 	}
 	probe := fmt.Sprintf(".cache/podlet-provider/integration-%d", time.Now().UnixNano())

@@ -1,21 +1,24 @@
 # podlet-provider
 
-A community OpenTofu and Terraform provider for managing rootless Podman Quadlet
+A community OpenTofu and Terraform provider for managing Podman Quadlet
 resources on remote machines.
 
 ## Features
 
 - One SSH target per provider instance, with aliases for multiple machines.
+- Dual-mode operation: rootless user Quadlets (`mode = "user"`) and rootful
+  system Quadlets (`mode = "system"`), via root SSH login or NOPASSWD sudo.
 - Strict SSH host-key verification by default.
 - SSH agent and unencrypted private-key authentication.
 - Typed, Kubernetes-inspired `metadata` and `spec` blocks.
 - Container, network, and volume Quadlet resources.
 - Atomic remote file replacement and provider ownership protection.
-- User systemd reload, enable, restart, status, and deletion handling.
+- systemd reload, enable, restart, status, and deletion handling.
 - Remote drift refresh and import of provider-managed Quadlet files.
 
-The target user must already have Podman, Quadlet, and a working user systemd
-session. This provider does not provision the machine or install Podman.
+The target user must already have Podman, Quadlet, and a working systemd
+session (user or system scope). This provider does not provision the machine or
+install Podman.
 
 ## Usage
 
@@ -89,9 +92,13 @@ schema.
 
 ## Lifecycle And Drift
 
-The provider writes rootless Quadlets to `.config/containers/systemd` relative
-to the SSH user's home by default. It then invokes `systemctl --user` to reload
-systemd and manage generated units.
+By default the provider manages rootless user Quadlets in
+`.config/containers/systemd` relative to the SSH user's home and drives systemd
+with `systemctl --user`. Set `mode = "system"` on the provider to manage rootful
+Quadlets in `/etc/containers/systemd` instead. In system mode the Quadlet files
+and `systemctl` commands are elevated with `sudo` when `sudo = true`; otherwise
+a root SSH login is required. System-mode units install into
+`multi-user.target`, user-mode units into `default.target`.
 
 Generated files contain an ownership marker. Creation and deletion refuse to
 replace an unmarked file at the managed path. During refresh, supported values
@@ -155,7 +162,6 @@ Podman host.
 
 ## Limitations
 
-- The initial release supports rootless Podman only; dual-mode rootless/rootful support with both root SSH login and NOPASSWD sudo is planned.
 - Password authentication, encrypted private keys, and jump hosts are not yet
   supported.
 - Pod, image, build, kube, and artifact Quadlets are not yet modeled.

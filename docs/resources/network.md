@@ -3,12 +3,12 @@
 page_title: "podlet_network Resource - podlet"
 subcategory: ""
 description: |-
-  Manages a rootless Podman Quadlet network.
+  Manages a Podman Quadlet network.
 ---
 
 # podlet_network (Resource)
 
-Manages a rootless Podman Quadlet network.
+Manages a Podman Quadlet network.
 
 
 

@@ -3,12 +3,12 @@
 page_title: "podlet_volume Resource - podlet"
 subcategory: ""
 description: |-
-  Manages a rootless Podman Quadlet volume.
+  Manages a Podman Quadlet volume.
 ---
 
 # podlet_volume (Resource)
 
-Manages a rootless Podman Quadlet volume.
+Manages a Podman Quadlet volume.
 
 
 
