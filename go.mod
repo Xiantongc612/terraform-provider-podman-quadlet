@@ -2,7 +2,11 @@ module github.com/Xiantongc612/podlet-provider
 
 go 1.24.0
 
-require github.com/hashicorp/terraform-plugin-framework v1.18.0
+require (
+	github.com/hashicorp/terraform-plugin-framework v1.18.0
+	github.com/pkg/sftp v1.13.10
+	golang.org/x/crypto v0.46.0
+)
 
 require (
 	github.com/fatih/color v1.18.0 // indirect
@@ -15,6 +19,7 @@ require (
 	github.com/hashicorp/terraform-registry-address v0.4.0 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
