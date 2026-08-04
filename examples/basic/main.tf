@@ -70,7 +70,7 @@ resource "podlet_container" "service" {
     networks = [podlet_network.service.reference]
 
     health_check {
-      command  = ["CMD", "curl", "--fail", "http://localhost/"]
+      command  = ["curl", "--fail", "http://localhost/"]
       interval = "30s"
       timeout  = "5s"
       retries  = 3

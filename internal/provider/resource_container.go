@@ -17,6 +17,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -39,20 +41,20 @@ type containerResourceModel struct {
 }
 
 type containerSpecModel struct {
-	Image            types.String          `tfsdk:"image"`
-	PullPolicy       types.String          `tfsdk:"pull_policy"`
-	Command          types.List            `tfsdk:"command"`
-	Arguments        types.List            `tfsdk:"arguments"`
-	Environment      types.Map             `tfsdk:"environment"`
-	EnvironmentFiles types.List            `tfsdk:"environment_files"`
-	Ports            []containerPortModel  `tfsdk:"port"`
-	Mounts           []containerMountModel `tfsdk:"mount"`
-	Networks         types.Set             `tfsdk:"networks"`
-	User             types.String          `tfsdk:"user"`
-	WorkingDirectory types.String          `tfsdk:"working_directory"`
-	Hostname         types.String          `tfsdk:"hostname"`
-	HealthCheck      containerHealthModel  `tfsdk:"health_check"`
-	Service          containerServiceModel `tfsdk:"service"`
+	Image            types.String           `tfsdk:"image"`
+	PullPolicy       types.String           `tfsdk:"pull_policy"`
+	Command          types.List             `tfsdk:"command"`
+	Arguments        types.List             `tfsdk:"arguments"`
+	Environment      types.Map              `tfsdk:"environment"`
+	EnvironmentFiles types.List             `tfsdk:"environment_files"`
+	Ports            []containerPortModel   `tfsdk:"port"`
+	Mounts           []containerMountModel  `tfsdk:"mount"`
+	Networks         types.Set              `tfsdk:"networks"`
+	User             types.String           `tfsdk:"user"`
+	WorkingDirectory types.String           `tfsdk:"working_directory"`
+	Hostname         types.String           `tfsdk:"hostname"`
+	HealthCheck      *containerHealthModel  `tfsdk:"health_check"`
+	Service          *containerServiceModel `tfsdk:"service"`
 }
 
 type containerPortModel struct {
@@ -110,7 +112,7 @@ func (r *containerResource) Schema(
 			"spec": schema.SingleNestedBlock{
 				Attributes: map[string]schema.Attribute{
 					"image":             schema.StringAttribute{Required: true},
-					"pull_policy":       schema.StringAttribute{Optional: true, Description: "One of always, missing, newer, or never. Defaults to missing."},
+					"pull_policy":       schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("missing"), Description: "One of always, missing, newer, or never. Defaults to missing."},
 					"command":           schema.ListAttribute{Optional: true, ElementType: types.StringType},
 					"arguments":         schema.ListAttribute{Optional: true, ElementType: types.StringType},
 					"environment":       schema.MapAttribute{Optional: true, Sensitive: true, ElementType: types.StringType},
@@ -126,20 +128,20 @@ func (r *containerResource) Schema(
 							"host_ip":        schema.StringAttribute{Optional: true},
 							"host_port":      schema.Int64Attribute{Optional: true},
 							"container_port": schema.Int64Attribute{Required: true},
-							"protocol":       schema.StringAttribute{Optional: true, Description: "One of tcp, udp, or sctp. Defaults to tcp."},
+							"protocol":       schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("tcp"), Description: "One of tcp, udp, or sctp. Defaults to tcp."},
 						}},
 					},
 					"mount": schema.ListNestedBlock{
 						NestedObject: schema.NestedBlockObject{Attributes: map[string]schema.Attribute{
 							"source":    schema.StringAttribute{Required: true},
 							"target":    schema.StringAttribute{Required: true},
-							"read_only": schema.BoolAttribute{Optional: true},
+							"read_only": schema.BoolAttribute{Optional: true, Computed: true, Default: booldefault.StaticBool(false)},
 							"options":   schema.ListAttribute{Optional: true, ElementType: types.StringType},
 						}},
 					},
 					"health_check": schema.SingleNestedBlock{
 						Attributes: map[string]schema.Attribute{
-							"command":      schema.ListAttribute{Required: true, ElementType: types.StringType},
+							"command":      schema.ListAttribute{Optional: true, ElementType: types.StringType},
 							"interval":     schema.StringAttribute{Optional: true},
 							"timeout":      schema.StringAttribute{Optional: true},
 							"retries":      schema.Int64Attribute{Optional: true},
@@ -148,7 +150,7 @@ func (r *containerResource) Schema(
 					},
 					"service": schema.SingleNestedBlock{
 						Attributes: map[string]schema.Attribute{
-							"restart":     schema.StringAttribute{Optional: true, Description: "Systemd restart policy. Defaults to on-failure."},
+							"restart":     schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("on-failure"), Description: "Systemd restart policy. Defaults to on-failure."},
 							"restart_sec": schema.StringAttribute{Optional: true},
 						},
 					},
@@ -316,9 +318,6 @@ func renderContainer(ctx context.Context, model *containerResourceModel) ([]byte
 	if model.Spec.PullPolicy.IsNull() {
 		model.Spec.PullPolicy = types.StringValue("missing")
 	}
-	if model.Spec.Service.Restart.IsNull() {
-		model.Spec.Service.Restart = types.StringValue("on-failure")
-	}
 	labels, labelDiagnostics := mapValues(ctx, model.Metadata.Labels)
 	environment, environmentDiagnostics := mapValues(ctx, model.Spec.Environment)
 	command, commandDiagnostics := listStrings(ctx, model.Spec.Command)
@@ -370,9 +369,9 @@ func renderContainer(ctx context.Context, model *containerResourceModel) ([]byte
 		"WorkingDir": model.Spec.WorkingDirectory,
 	})...)
 	pairs = append(pairs, sortedMapPairs("Label", labels, "=")...)
-	healthCommand, healthDiagnostics := listStrings(ctx, model.Spec.HealthCheck.Command)
-	diagnostics.Append(healthDiagnostics...)
-	if len(healthCommand) > 0 {
+	if model.Spec.HealthCheck != nil {
+		healthCommand, healthDiagnostics := listStrings(ctx, model.Spec.HealthCheck.Command)
+		diagnostics.Append(healthDiagnostics...)
 		pairs = append(pairs, quadlet.Pair{Key: "HealthCmd", Value: encodeArguments(healthCommand)})
 		pairs = append(pairs, optionalStringPairs(map[string]types.String{
 			"HealthInterval":    model.Spec.HealthCheck.Interval,
@@ -383,16 +382,21 @@ func renderContainer(ctx context.Context, model *containerResourceModel) ([]byte
 			pairs = append(pairs, quadlet.Pair{Key: "HealthRetries", Value: strconv.FormatInt(model.Spec.HealthCheck.Retries.ValueInt64(), 10)})
 		}
 	}
-	servicePairs := optionalStringPairs(map[string]types.String{
-		"Restart":    model.Spec.Service.Restart,
-		"RestartSec": model.Spec.Service.RestartSec,
-	})
-	return quadlet.Render(
+	sections := []quadlet.Section{
 		unitSection(model.Metadata.Description),
-		quadlet.Section{Name: "Container", Pairs: pairs},
-		quadlet.Section{Name: "Service", Pairs: servicePairs},
-		installSection(),
-	), diagnostics
+		{Name: "Container", Pairs: pairs},
+	}
+	if model.Spec.Service != nil {
+		sections = append(sections, quadlet.Section{
+			Name: "Service",
+			Pairs: optionalStringPairs(map[string]types.String{
+				"Restart":    model.Spec.Service.Restart,
+				"RestartSec": model.Spec.Service.RestartSec,
+			}),
+		})
+	}
+	sections = append(sections, installSection())
+	return quadlet.Render(sections...), diagnostics
 }
 
 func parseContainer(content []byte, name string) (*containerResourceModel, error) {
@@ -472,17 +476,8 @@ func parseContainer(content []byte, name string) (*containerResourceModel, error
 			User:             optionalStringValue(first(containerPairs, "User")),
 			WorkingDirectory: optionalStringValue(first(containerPairs, "WorkingDir")),
 			Hostname:         optionalStringValue(first(containerPairs, "HostName")),
-			HealthCheck: containerHealthModel{
-				Command:     stringListValue(healthCommand),
-				Interval:    optionalStringValue(first(containerPairs, "HealthInterval")),
-				Timeout:     optionalStringValue(first(containerPairs, "HealthTimeout")),
-				Retries:     optionalInt64Value(first(containerPairs, "HealthRetries")),
-				StartPeriod: optionalStringValue(first(containerPairs, "HealthStartPeriod")),
-			},
-			Service: containerServiceModel{
-				Restart:    optionalStringValue(first(servicePairs, "Restart")),
-				RestartSec: optionalStringValue(first(servicePairs, "RestartSec")),
-			},
+			HealthCheck:      parsedHealthCheck(containerPairs, healthCommand),
+			Service:          parsedService(servicePairs),
 		},
 	}, nil
 }
@@ -538,18 +533,25 @@ func validateContainerSpec(ctx context.Context, spec containerSpecModel, diagnos
 			}
 		}
 	}
-	validateDuration("health interval", spec.HealthCheck.Interval)
-	validateDuration("health timeout", spec.HealthCheck.Timeout)
-	validateDuration("health start period", spec.HealthCheck.StartPeriod)
-	validateDuration("restart delay", spec.Service.RestartSec)
-	if !spec.HealthCheck.Retries.IsNull() && !spec.HealthCheck.Retries.IsUnknown() && spec.HealthCheck.Retries.ValueInt64() < 1 {
-		diagnostics.AddError("Invalid health retries", "health_check.retries must be greater than zero.")
+	if spec.HealthCheck != nil {
+		if spec.HealthCheck.Command.IsNull() {
+			diagnostics.AddError("Missing health command", "health_check.command is required when the health_check block is configured.")
+		}
+		validateDuration("health interval", spec.HealthCheck.Interval)
+		validateDuration("health timeout", spec.HealthCheck.Timeout)
+		validateDuration("health start period", spec.HealthCheck.StartPeriod)
+		if !spec.HealthCheck.Retries.IsNull() && !spec.HealthCheck.Retries.IsUnknown() && spec.HealthCheck.Retries.ValueInt64() < 1 {
+			diagnostics.AddError("Invalid health retries", "health_check.retries must be greater than zero.")
+		}
 	}
-	if !spec.Service.Restart.IsNull() && !spec.Service.Restart.IsUnknown() && !oneOf(
-		spec.Service.Restart.ValueString(),
-		"no", "on-success", "on-failure", "on-abnormal", "on-watchdog", "on-abort", "always",
-	) {
-		diagnostics.AddError("Invalid restart policy", "service.restart is not a supported systemd restart policy.")
+	if spec.Service != nil {
+		validateDuration("restart delay", spec.Service.RestartSec)
+		if !spec.Service.Restart.IsNull() && !spec.Service.Restart.IsUnknown() && !oneOf(
+			spec.Service.Restart.ValueString(),
+			"no", "on-success", "on-failure", "on-abnormal", "on-watchdog", "on-abort", "always",
+		) {
+			diagnostics.AddError("Invalid restart policy", "service.restart is not a supported systemd restart policy.")
+		}
 	}
 }
 
@@ -740,14 +742,31 @@ func emptyContainerSpec() containerSpecModel {
 		User:             types.StringNull(),
 		WorkingDirectory: types.StringNull(),
 		Hostname:         types.StringNull(),
-		HealthCheck: containerHealthModel{
-			Command:     types.ListNull(types.StringType),
-			Interval:    types.StringNull(),
-			Timeout:     types.StringNull(),
-			Retries:     types.Int64Null(),
-			StartPeriod: types.StringNull(),
-		},
-		Service: containerServiceModel{Restart: types.StringNull(), RestartSec: types.StringNull()},
+		HealthCheck:      nil,
+		Service:          nil,
+	}
+}
+
+func parsedHealthCheck(values map[string][]string, command []string) *containerHealthModel {
+	if len(command) == 0 {
+		return nil
+	}
+	return &containerHealthModel{
+		Command:     stringListValue(command),
+		Interval:    optionalStringValue(first(values, "HealthInterval")),
+		Timeout:     optionalStringValue(first(values, "HealthTimeout")),
+		Retries:     optionalInt64Value(first(values, "HealthRetries")),
+		StartPeriod: optionalStringValue(first(values, "HealthStartPeriod")),
+	}
+}
+
+func parsedService(values map[string][]string) *containerServiceModel {
+	if first(values, "Restart") == "" && first(values, "RestartSec") == "" {
+		return nil
+	}
+	return &containerServiceModel{
+		Restart:    optionalStringValue(first(values, "Restart")),
+		RestartSec: optionalStringValue(first(values, "RestartSec")),
 	}
 }
 

@@ -89,4 +89,14 @@ func TestManagedLifecycleProtectsUnmanagedFiles(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unmanaged") {
 		t.Fatalf("expected unmanaged-file error, got %v", err)
 	}
+	_, err = managed.apply(
+		context.Background(),
+		"example.network",
+		"example-network.service",
+		quadlet.Render(quadlet.Section{Name: "Network"}),
+		false,
+	)
+	if err == nil || !strings.Contains(err.Error(), "unmanaged") {
+		t.Fatalf("expected update to protect unmanaged file, got %v", err)
+	}
 }

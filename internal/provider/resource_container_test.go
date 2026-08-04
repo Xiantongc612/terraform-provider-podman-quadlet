@@ -39,8 +39,17 @@ func TestContainerRenderAndParse(t *testing.T) {
 		Options:  types.ListNull(types.StringType),
 	}}
 	model.Spec.Networks = stringSetValue([]string{"service.network"})
-	model.Spec.HealthCheck.Command = stringListValue([]string{"curl", "--fail", "http://localhost/health"})
-	model.Spec.HealthCheck.Interval = types.StringValue("30s")
+	model.Spec.HealthCheck = &containerHealthModel{
+		Command:     stringListValue([]string{"curl", "--fail", "http://localhost/health"}),
+		Interval:    types.StringValue("30s"),
+		Timeout:     types.StringNull(),
+		Retries:     types.Int64Null(),
+		StartPeriod: types.StringNull(),
+	}
+	model.Spec.Service = &containerServiceModel{
+		Restart:    types.StringValue("on-failure"),
+		RestartSec: types.StringNull(),
+	}
 
 	content, diagnostics := renderContainer(context.Background(), &model)
 	if diagnostics.HasError() {

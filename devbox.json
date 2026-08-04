@@ -16,7 +16,7 @@
         "pre-commit install"
       ],
       "fmt": [
-        "go fmt ./...",
+        "gofmt -w -s $(git ls-files '*.go')",
         "tofu fmt -recursive examples"
       ],
       "fmt:check": [

@@ -64,12 +64,9 @@ Optional:
 <a id="nestedblock--spec--health_check"></a>
 ### Nested Schema for `spec.health_check`
 
-Required:
-
-- `command` (List of String)
-
 Optional:
 
+- `command` (List of String)
 - `interval` (String)
 - `retries` (Number)
 - `start_period` (String)

@@ -131,14 +131,12 @@ func (r *managedResource) apply(
 	content []byte,
 	create bool,
 ) (statusModel, error) {
-	if create {
-		existing, err := r.client.ReadFile(ctx, filePath)
-		if err == nil && !quadlet.Managed(existing) {
-			return statusModel{}, fmt.Errorf("refusing to overwrite unmanaged remote file %q", filePath)
-		}
-		if err != nil && !errors.Is(err, remote.ErrNotFound) {
-			return statusModel{}, fmt.Errorf("check remote file: %w", err)
-		}
+	existing, err := r.client.ReadFile(ctx, filePath)
+	if err == nil && !quadlet.Managed(existing) {
+		return statusModel{}, fmt.Errorf("refusing to overwrite unmanaged remote file %q", filePath)
+	}
+	if err != nil && !errors.Is(err, remote.ErrNotFound) {
+		return statusModel{}, fmt.Errorf("check remote file: %w", err)
 	}
 	if err := r.client.WriteFile(ctx, filePath, content); err != nil {
 		return statusModel{}, fmt.Errorf("write Quadlet: %w", err)

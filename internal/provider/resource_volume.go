@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -69,7 +70,7 @@ func (r *volumeResource) Schema(
 			"metadata": metadataBlock(),
 			"spec": schema.SingleNestedBlock{
 				Attributes: map[string]schema.Attribute{
-					"driver":        schema.StringAttribute{Optional: true, Description: "Podman volume driver. Defaults to local."},
+					"driver":        schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("local"), Description: "Podman volume driver. Defaults to local."},
 					"device":        schema.StringAttribute{Optional: true, Description: "Host device or path for the local driver."},
 					"type":          schema.StringAttribute{Optional: true, Description: "Filesystem type for the local driver."},
 					"mount_options": schema.ListAttribute{Optional: true, ElementType: types.StringType},
