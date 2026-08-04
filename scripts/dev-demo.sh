@@ -4,11 +4,18 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-if [ -f "$repo_root/.env.op" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$repo_root/.env.op"
-  set +a
+if [ "${PODLET_DEMO_LOADED:-0}" != "1" ] && [ -f "$repo_root/.env.op" ]; then
+  if command -v op >/dev/null 2>&1; then
+    echo "==> Loading .env.op through 1Password (secrets stay ephemeral)"
+    export PODLET_DEMO_LOADED=1
+    exec op run --env-file="$repo_root/.env.op" -- bash "$0" "$@"
+  else
+    echo "note: 'op' CLI not found; sourcing .env.op without secret resolution" >&2
+    set -a
+    # shellcheck disable=SC1091
+    . "$repo_root/.env.op"
+    set +a
+  fi
 fi
 
 host="${PODLET_DEMO_HOST:-127.0.0.1}"
@@ -89,7 +96,7 @@ provider_installation {
 EOF
 
 run_demo() {
-  (cd "$workspace" && TF_CLI_CONFIG_FILE="$workspace/demo.tfrc" tofu "$@")
+  (cd "$workspace" && TF_CLI_CONFIG_FILE="$workspace/demo.tfrc" TF_VAR_password="$password" tofu "$@")
 }
 
 cleanup() {
@@ -97,8 +104,7 @@ cleanup() {
     echo
     echo "==> Destroying the hello demo"
     run_demo destroy -auto-approve \
-      -var "host=$host" -var "user=$user" -var "private_key_path=$key_path" \
-      -var "password=$password" >/dev/null 2>&1 || true
+      -var "host=$host" -var "user=$user" -var "private_key_path=$key_path" >/dev/null 2>&1 || true
   fi
   rm -rf "$workspace"
 }
@@ -109,8 +115,7 @@ run_demo init -input=false >/dev/null 2>&1 || true
 
 echo "==> Applying the hello demo"
 run_demo apply -auto-approve \
-  -var "host=$host" -var "user=$user" -var "private_key_path=$key_path" \
-  -var "password=$password"
+  -var "host=$host" -var "user=$user" -var "private_key_path=$key_path"
 
 echo "==> Waiting for the container to serve HTTP"
 served=false
@@ -134,5 +139,5 @@ fi
 if [ "${PODLET_DEMO_KEEP:-0}" = "1" ]; then
   echo
   echo "==> Demo left running (PODLET_DEMO_KEEP=1)"
-  echo "destroy it with: cd .dev/demo && TF_CLI_CONFIG_FILE=demo.tfrc tofu destroy -auto-approve -var host=$host -var user=$user -var password=$password"
+  echo "destroy it with: op run --env-file=.env.op -- tofu -chdir=.dev/demo destroy -auto-approve -var host=$host -var user=$user"
 fi
