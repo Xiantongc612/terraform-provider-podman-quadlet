@@ -155,7 +155,7 @@ Podman host.
 
 ## Limitations
 
-- Initial support is rootless only; rootful and sudo workflows are deferred.
+- The initial release supports rootless Podman only; dual-mode rootless/rootful support with both root SSH login and NOPASSWD sudo is planned.
 - Password authentication, encrypted private keys, and jump hosts are not yet
   supported.
 - Pod, image, build, kube, and artifact Quadlets are not yet modeled.
