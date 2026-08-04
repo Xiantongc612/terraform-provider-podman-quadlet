@@ -16,10 +16,12 @@
         "pre-commit install"
       ],
       "fmt": [
-        "gofmt -w ."
+        "go fmt ./...",
+        "tofu fmt -recursive examples"
       ],
       "fmt:check": [
-        "test -z \"$(gofmt -l .)\""
+        "golangci-lint run",
+        "tofu fmt -check -recursive examples"
       ],
       "lint": [
         "golangci-lint run"
@@ -28,14 +30,26 @@
         "go test ./..."
       ],
       "build": [
-        "go build ./cmd/terraform-provider-podlet"
+        "go build -o terraform-provider-podlet ."
+      ],
+      "docs": [
+        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet"
+      ],
+      "docs:check": [
+        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet",
+        "git diff --exit-code -- docs"
+      ],
+      "integration": [
+        "go test -tags=integration ./internal/remote -run TestSSHIntegration -v"
       ],
       "check": [
-        "test -z \"$(gofmt -l .)\"",
+        "tofu fmt -check -recursive examples",
         "go vet ./...",
         "golangci-lint run",
         "go test ./...",
-        "go build ./cmd/terraform-provider-podlet",
+        "go build -o terraform-provider-podlet .",
+        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet",
+        "git diff --exit-code -- docs",
         "gitleaks git"
       ]
     }

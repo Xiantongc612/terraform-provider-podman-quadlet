@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+set -eu
+
+# tfplugindocs creates a Terraform registry mirror, while OpenTofu resolves an
+# unqualified provider against its own registry. Make both names address the
+# same temporary provider build before delegating to OpenTofu.
+if [ -d plugins/registry.terraform.io/hashicorp ]; then
+  mkdir -p plugins/registry.opentofu.org
+  cp -R plugins/registry.terraform.io/hashicorp plugins/registry.opentofu.org/
+fi
+
+case " $* " in
+  *" providers schema -json "*)
+    tofu "$@" | sed 's#registry.opentofu.org#registry.terraform.io#g'
+    ;;
+  *)
+    exec tofu "$@"
+    ;;
+esac
