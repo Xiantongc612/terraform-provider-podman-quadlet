@@ -26,3 +26,21 @@ func TestManagedRejectsOtherContent(t *testing.T) {
 		t.Fatal("unmarked document was recognized as managed")
 	}
 }
+
+func TestParsePreservesRepeatedKeys(t *testing.T) {
+	t.Parallel()
+
+	sections, err := Parse(Render(Section{
+		Name: "Container",
+		Pairs: []Pair{
+			{Key: "Environment", Value: "A=one"},
+			{Key: "Environment", Value: "B=two"},
+		},
+	}))
+	if err != nil {
+		t.Fatalf("Parse returned an error: %v", err)
+	}
+	if len(sections["Container"]) != 2 {
+		t.Fatalf("expected two entries, got %#v", sections["Container"])
+	}
+}

@@ -2,8 +2,10 @@
 package quadlet
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 )
 
@@ -49,4 +51,39 @@ func Managed(content []byte) bool {
 func Checksum(content []byte) string {
 	digest := sha256.Sum256(content)
 	return hex.EncodeToString(digest[:])
+}
+
+// Parse reads provider-managed Quadlet content while preserving repeated keys.
+func Parse(content []byte) (map[string][]Pair, error) {
+	if !Managed(content) {
+		return nil, fmt.Errorf("quadlet file is not managed by this provider")
+	}
+	sections := make(map[string][]Pair)
+	current := ""
+	scanner := bufio.NewScanner(strings.NewReader(string(content)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			current = strings.TrimSuffix(strings.TrimPrefix(line, "["), "]")
+			if current == "" {
+				return nil, fmt.Errorf("empty Quadlet section")
+			}
+			continue
+		}
+		if current == "" {
+			return nil, fmt.Errorf("entry outside a Quadlet section: %q", line)
+		}
+		key, value, found := strings.Cut(line, "=")
+		if !found || key == "" {
+			return nil, fmt.Errorf("invalid Quadlet entry: %q", line)
+		}
+		sections[current] = append(sections[current], Pair{Key: key, Value: value})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan Quadlet content: %w", err)
+	}
+	return sections, nil
 }

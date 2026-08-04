@@ -196,7 +196,10 @@ func (p *PodletProvider) Configure(
 
 // Resources returns resources implemented by this provider.
 func (p *PodletProvider) Resources(context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		newNetworkResource,
+		newVolumeResource,
+	}
 }
 
 // DataSources returns data sources implemented by this provider.
