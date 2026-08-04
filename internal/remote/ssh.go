@@ -18,7 +18,13 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
-// SSHConfig contains connection settings for a rootless Podman host.
+// Modes identify the systemd scope managed on the remote host.
+const (
+	ModeUser   = "user"
+	ModeSystem = "system"
+)
+
+// SSHConfig contains connection settings for a Podman host.
 type SSHConfig struct {
 	Host                  string
 	User                  string
@@ -28,15 +34,27 @@ type SSHConfig struct {
 	UseAgent              bool
 	InsecureIgnoreHostKey bool
 	Timeout               time.Duration
+	Mode                  string
+	Sudo                  bool
 }
 
 // SSHClient performs remote operations using a new SSH connection per operation.
 type SSHClient struct {
-	config SSHConfig
+	config  SSHConfig
+	elevate bool
 }
 
 // NewSSHClient validates config and creates an SSH-backed remote client.
 func NewSSHClient(config SSHConfig) (*SSHClient, error) {
+	if config.Mode == "" {
+		config.Mode = ModeUser
+	}
+	if config.Mode != ModeUser && config.Mode != ModeSystem {
+		return nil, fmt.Errorf("mode must be %q or %q, got %q", ModeUser, ModeSystem, config.Mode)
+	}
+	if config.Sudo && config.Mode != ModeSystem {
+		return nil, fmt.Errorf("sudo is only supported when mode is %q", ModeSystem)
+	}
 	if config.Host == "" {
 		return nil, errors.New("host must not be empty")
 	}
@@ -56,7 +74,7 @@ func NewSSHClient(config SSHConfig) (*SSHClient, error) {
 		return nil, errors.New("known_hosts_path is required unless host key verification is disabled")
 	}
 
-	return &SSHClient{config: config}, nil
+	return &SSHClient{config: config, elevate: config.Mode == ModeSystem && config.Sudo}, nil
 }
 
 func (c *SSHClient) dial(ctx context.Context) (*ssh.Client, error) {
@@ -137,8 +155,20 @@ func (c *SSHClient) hostKeyCallback() (ssh.HostKeyCallback, error) {
 	return callback, nil
 }
 
-// ReadFile reads a file relative to the remote user's home directory.
+// ReadFile reads a file relative to the remote user's home directory, or an
+// absolute path when the client elevates with sudo.
 func (c *SSHClient) ReadFile(ctx context.Context, filePath string) ([]byte, error) {
+	if c.elevate {
+		output, err := c.rawRun(ctx, "sudo cat "+ShellQuote(filePath))
+		if err != nil {
+			if strings.Contains(err.Error(), "No such file or directory") {
+				return nil, ErrNotFound
+			}
+			return nil, fmt.Errorf("read remote file %q: %w", filePath, err)
+		}
+		return output, nil
+	}
+
 	client, err := c.dial(ctx)
 	if err != nil {
 		return nil, err
@@ -167,8 +197,13 @@ func (c *SSHClient) ReadFile(ctx context.Context, filePath string) ([]byte, erro
 	return contents, nil
 }
 
-// WriteFile atomically replaces a file relative to the remote user's home.
+// WriteFile atomically replaces a file relative to the remote user's home, or
+// an absolute path when the client elevates with a staged sudo install.
 func (c *SSHClient) WriteFile(ctx context.Context, filePath string, contents []byte) error {
+	if c.elevate {
+		return c.writeFileElevated(ctx, filePath, contents)
+	}
+
 	client, err := c.dial(ctx)
 	if err != nil {
 		return err
@@ -210,8 +245,63 @@ func (c *SSHClient) WriteFile(ctx context.Context, filePath string, contents []b
 	return nil
 }
 
-// RemoveFile removes a file relative to the remote user's home directory.
+// writeFileElevated stages content in a writable home-relative path and installs
+// it into place with sudo, cleaning up the staging file afterwards.
+func (c *SSHClient) writeFileElevated(ctx context.Context, filePath string, contents []byte) error {
+	client, err := c.dial(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return fmt.Errorf("start SFTP client: %w", err)
+	}
+	defer func() { _ = sftpClient.Close() }()
+
+	stagingPath := path.Join(".podlet-provider", "staging", path.Base(filePath)+".podlet-tmp")
+	if err := sftpClient.MkdirAll(path.Dir(stagingPath)); err != nil {
+		return fmt.Errorf("create staging directory for %q: %w", filePath, err)
+	}
+	file, err := sftpClient.OpenFile(stagingPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		return fmt.Errorf("create staging file for %q: %w", filePath, err)
+	}
+	if err := file.Chmod(0o600); err != nil {
+		_ = file.Close()
+		_ = sftpClient.Remove(stagingPath)
+		return fmt.Errorf("set staging file permissions: %w", err)
+	}
+	if _, err := file.Write(contents); err != nil {
+		_ = file.Close()
+		_ = sftpClient.Remove(stagingPath)
+		return fmt.Errorf("write staging file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		_ = sftpClient.Remove(stagingPath)
+		return fmt.Errorf("close staging file: %w", err)
+	}
+	if _, err := c.exec(ctx, client, "sudo install -D -m 0644 "+ShellQuote(stagingPath)+" "+ShellQuote(filePath)); err != nil {
+		_ = sftpClient.Remove(stagingPath)
+		return fmt.Errorf("install remote file %q: %w", filePath, err)
+	}
+	if err := sftpClient.Remove(stagingPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove staging file %q: %w", stagingPath, err)
+	}
+	return nil
+}
+
+// RemoveFile removes a file relative to the remote user's home directory, or an
+// absolute path when the client elevates with sudo.
 func (c *SSHClient) RemoveFile(ctx context.Context, filePath string) error {
+	if c.elevate {
+		if _, err := c.Run(ctx, "sudo rm -f "+ShellQuote(filePath)); err != nil {
+			return fmt.Errorf("remove remote file %q: %w", filePath, err)
+		}
+		return nil
+	}
+
 	client, err := c.dial(ctx)
 	if err != nil {
 		return err
@@ -232,15 +322,25 @@ func (c *SSHClient) RemoveFile(ctx context.Context, filePath string) error {
 
 // Run executes a command and returns its combined output.
 func (c *SSHClient) Run(ctx context.Context, command string) (string, error) {
+	output, err := c.rawRun(ctx, command)
+	return strings.TrimSpace(string(output)), err
+}
+
+// rawRun executes a command and returns its combined output without trimming.
+func (c *SSHClient) rawRun(ctx context.Context, command string) ([]byte, error) {
 	client, err := c.dial(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer func() { _ = client.Close() }()
+	return c.exec(ctx, client, command)
+}
 
+// exec runs a command on an established SSH connection.
+func (c *SSHClient) exec(ctx context.Context, client *ssh.Client, command string) ([]byte, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return "", fmt.Errorf("create SSH session: %w", err)
+		return nil, fmt.Errorf("create SSH session: %w", err)
 	}
 	defer func() { _ = session.Close() }()
 
@@ -257,13 +357,12 @@ func (c *SSHClient) Run(ctx context.Context, command string) (string, error) {
 	select {
 	case <-ctx.Done():
 		_ = client.Close()
-		return "", fmt.Errorf("run remote command: %w", ctx.Err())
+		return nil, fmt.Errorf("run remote command: %w", ctx.Err())
 	case completed := <-done:
-		output := strings.TrimSpace(string(completed.output))
 		if completed.err != nil {
-			return output, fmt.Errorf("run remote command %q: %w", command, completed.err)
+			return completed.output, fmt.Errorf("run remote command %q: %w", command, completed.err)
 		}
-		return output, nil
+		return completed.output, nil
 	}
 }
 

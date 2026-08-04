@@ -102,7 +102,7 @@ func (r *containerResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a rootless Podman Quadlet container and systemd service.",
+		Description: "Manages a Podman Quadlet container and systemd service.",
 		Attributes: map[string]schema.Attribute{
 			"id":     schema.StringAttribute{Computed: true},
 			"status": statusAttribute(),
@@ -192,7 +192,7 @@ func (r *containerResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	content, diagnostics := renderContainer(ctx, &plan)
+	content, diagnostics := renderContainer(ctx, &plan, r.installTarget)
 	resp.Diagnostics.Append(diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -258,7 +258,7 @@ func (r *containerResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	content, diagnostics := renderContainer(ctx, &plan)
+	content, diagnostics := renderContainer(ctx, &plan, r.installTarget)
 	resp.Diagnostics.Append(diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -313,7 +313,7 @@ func (r *containerResource) ImportState(
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("spec"), emptyContainerSpec())...)
 }
 
-func renderContainer(ctx context.Context, model *containerResourceModel) ([]byte, diag.Diagnostics) {
+func renderContainer(ctx context.Context, model *containerResourceModel, target string) ([]byte, diag.Diagnostics) {
 	var diagnostics diag.Diagnostics
 	if model.Spec.PullPolicy.IsNull() {
 		model.Spec.PullPolicy = types.StringValue("missing")
@@ -395,7 +395,7 @@ func renderContainer(ctx context.Context, model *containerResourceModel) ([]byte
 			}),
 		})
 	}
-	sections = append(sections, installSection())
+	sections = append(sections, installSection(target))
 	return quadlet.Render(sections...), diagnostics
 }
 

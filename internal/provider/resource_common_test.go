@@ -44,7 +44,12 @@ func TestManagedLifecycle(t *testing.T) {
 	t.Parallel()
 
 	client := &fakeRemote{files: make(map[string][]byte)}
-	managed := managedResource{client: client, quadletDirectory: ".config/containers/systemd"}
+	managed := managedResource{
+		client:           client,
+		quadletDirectory: ".config/containers/systemd",
+		systemctlPrefix:  "systemctl --user",
+		installTarget:    "default.target",
+	}
 	content := quadlet.Render(quadlet.Section{Name: "Network"})
 	status, err := managed.apply(
 		context.Background(),

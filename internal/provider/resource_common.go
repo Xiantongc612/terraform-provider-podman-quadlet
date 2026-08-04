@@ -42,6 +42,8 @@ type statusModel struct {
 type managedResource struct {
 	client           remote.Client
 	quadletDirectory string
+	systemctlPrefix  string
+	installTarget    string
 }
 
 func metadataBlock() schema.SingleNestedBlock {
@@ -118,10 +120,16 @@ func (r *managedResource) configure(req resource.ConfigureRequest, resp *resourc
 	}
 	r.client = data.client
 	r.quadletDirectory = data.quadletDirectory
+	r.systemctlPrefix = data.systemctlPrefix
+	r.installTarget = data.installTarget
 }
 
 func (r *managedResource) filePath(name, extension string) string {
 	return path.Join(r.quadletDirectory, name+extension)
+}
+
+func (r *managedResource) systemctl(ctx context.Context, command string) (string, error) {
+	return r.client.Run(ctx, r.systemctlPrefix+" "+command)
 }
 
 func (r *managedResource) apply(
@@ -141,14 +149,14 @@ func (r *managedResource) apply(
 	if err := r.client.WriteFile(ctx, filePath, content); err != nil {
 		return statusModel{}, fmt.Errorf("write Quadlet: %w", err)
 	}
-	if _, err := r.client.Run(ctx, "systemctl --user daemon-reload"); err != nil {
+	if _, err := r.systemctl(ctx, "daemon-reload"); err != nil {
 		return statusModel{}, err
 	}
 	action := "restart"
 	if create {
 		action = "enable --now"
 	}
-	if _, err := r.client.Run(ctx, "systemctl --user "+action+" "+remote.ShellQuote(unit)); err != nil {
+	if _, err := r.systemctl(ctx, action+" "+remote.ShellQuote(unit)); err != nil {
 		return statusModel{}, err
 	}
 	return r.status(ctx, filePath, unit, content)
@@ -160,9 +168,9 @@ func (r *managedResource) status(
 	unit string,
 	content []byte,
 ) (statusModel, error) {
-	output, err := r.client.Run(
+	output, err := r.systemctl(
 		ctx,
-		"systemctl --user show --property=LoadState --property=ActiveState --property=SubState "+remote.ShellQuote(unit),
+		"show --property=LoadState --property=ActiveState --property=SubState "+remote.ShellQuote(unit),
 	)
 	if err != nil {
 		return statusModel{}, err
@@ -195,13 +203,13 @@ func (r *managedResource) delete(ctx context.Context, filePath, unit string) err
 	if !quadlet.Managed(content) {
 		return fmt.Errorf("refusing to delete unmanaged remote file %q", filePath)
 	}
-	if _, err := r.client.Run(ctx, "systemctl --user disable --now "+remote.ShellQuote(unit)); err != nil {
+	if _, err := r.systemctl(ctx, "disable --now "+remote.ShellQuote(unit)); err != nil {
 		return err
 	}
 	if err := r.client.RemoveFile(ctx, filePath); err != nil {
 		return err
 	}
-	if _, err := r.client.Run(ctx, "systemctl --user daemon-reload"); err != nil {
+	if _, err := r.systemctl(ctx, "daemon-reload"); err != nil {
 		return err
 	}
 	return nil
@@ -359,10 +367,10 @@ func unitSection(description types.String) quadlet.Section {
 	return section
 }
 
-func installSection() quadlet.Section {
+func installSection(target string) quadlet.Section {
 	return quadlet.Section{
 		Name:  "Install",
-		Pairs: []quadlet.Pair{{Key: "WantedBy", Value: "default.target"}},
+		Pairs: []quadlet.Pair{{Key: "WantedBy", Value: target}},
 	}
 }
 

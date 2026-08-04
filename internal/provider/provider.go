@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/Xiantongc612/podlet-provider/internal/remote"
@@ -35,11 +36,15 @@ type providerModel struct {
 	InsecureIgnoreHostKey types.Bool   `tfsdk:"insecure_ignore_host_key"`
 	ConnectionTimeout     types.String `tfsdk:"connection_timeout"`
 	QuadletDirectory      types.String `tfsdk:"quadlet_directory"`
+	Mode                  types.String `tfsdk:"mode"`
+	Sudo                  types.Bool   `tfsdk:"sudo"`
 }
 
 type providerData struct {
 	client           remote.Client
 	quadletDirectory string
+	systemctlPrefix  string
+	installTarget    string
 }
 
 // New returns a factory for a provider with the given release version.
@@ -66,7 +71,7 @@ func (p *PodletProvider) Schema(
 	resp *provider.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		Description: "Manage rootless Podman Quadlets on a remote machine.",
+		Description: "Manage Podman Quadlets on a remote machine.",
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
 				Required:    true,
@@ -74,7 +79,7 @@ func (p *PodletProvider) Schema(
 			},
 			"user": schema.StringAttribute{
 				Required:    true,
-				Description: "Remote user that owns the rootless Podman services.",
+				Description: "Remote user used to connect over SSH.",
 			},
 			"port": schema.Int64Attribute{
 				Optional:    true,
@@ -102,7 +107,15 @@ func (p *PodletProvider) Schema(
 			},
 			"quadlet_directory": schema.StringAttribute{
 				Optional:    true,
-				Description: "Remote Quadlet directory relative to the user's home. Defaults to .config/containers/systemd.",
+				Description: "Remote Quadlet directory. In user mode this is relative to the user's home and defaults to .config/containers/systemd; in system mode it must be absolute and defaults to /etc/containers/systemd.",
+			},
+			"mode": schema.StringAttribute{
+				Optional:    true,
+				Description: "Manage user (rootless) or system (rootful) Quadlets and systemd. Defaults to user.",
+			},
+			"sudo": schema.BoolAttribute{
+				Optional:    true,
+				Description: "Use sudo to write system Quadlets and run systemd. Requires mode=system and NOPASSWD sudo. Defaults to false.",
 			},
 		},
 	}
@@ -152,11 +165,57 @@ func (p *PodletProvider) Configure(
 		)
 		return
 	}
+
+	mode := remote.ModeUser
+	if !config.Mode.IsNull() && !config.Mode.IsUnknown() {
+		mode = config.Mode.ValueString()
+	}
+	if mode != remote.ModeUser && mode != remote.ModeSystem {
+		resp.Diagnostics.AddAttributeError(
+			frameworkpath.Root("mode"),
+			"Invalid mode",
+			"mode must be user or system.",
+		)
+		return
+	}
+	sudo := false
+	if !config.Sudo.IsNull() && !config.Sudo.IsUnknown() {
+		sudo = config.Sudo.ValueBool()
+	}
+	if sudo && mode != remote.ModeSystem {
+		resp.Diagnostics.AddAttributeError(
+			frameworkpath.Root("sudo"),
+			"Invalid sudo",
+			"sudo is only valid when mode is system.",
+		)
+		return
+	}
+	if mode == remote.ModeSystem && !sudo && config.User.ValueString() != "root" {
+		resp.Diagnostics.AddAttributeError(
+			frameworkpath.Root("sudo"),
+			"Root login required",
+			"System mode without sudo requires root SSH login. Set sudo = true for a user with NOPASSWD sudo, or user = \"root\".",
+		)
+		return
+	}
+
 	quadletDirectory := ".config/containers/systemd"
+	if mode == remote.ModeSystem {
+		quadletDirectory = "/etc/containers/systemd"
+	}
 	if !config.QuadletDirectory.IsNull() && !config.QuadletDirectory.IsUnknown() {
 		quadletDirectory = config.QuadletDirectory.ValueString()
 	}
-	if quadletDirectory == "" || quadletDirectory == "." || path.Clean(quadletDirectory) != quadletDirectory ||
+	if mode == remote.ModeSystem {
+		if !strings.HasPrefix(quadletDirectory, "/") || path.Clean(quadletDirectory) != quadletDirectory {
+			resp.Diagnostics.AddAttributeError(
+				frameworkpath.Root("quadlet_directory"),
+				"Invalid Quadlet directory",
+				"In system mode quadlet_directory must be an absolute, clean path.",
+			)
+			return
+		}
+	} else if quadletDirectory == "" || quadletDirectory == "." || path.Clean(quadletDirectory) != quadletDirectory ||
 		quadletDirectory == ".." || len(quadletDirectory) >= 3 && quadletDirectory[:3] == "../" {
 		resp.Diagnostics.AddAttributeError(
 			frameworkpath.Root("quadlet_directory"),
@@ -165,6 +224,18 @@ func (p *PodletProvider) Configure(
 		)
 		return
 	}
+
+	systemctlPrefix := "systemctl --user"
+	installTarget := "default.target"
+	if mode == remote.ModeSystem {
+		installTarget = "multi-user.target"
+		if sudo {
+			systemctlPrefix = "sudo systemctl"
+		} else {
+			systemctlPrefix = "systemctl"
+		}
+	}
+
 	privateKeyPath := ""
 	if !config.PrivateKeyPath.IsNull() && !config.PrivateKeyPath.IsUnknown() {
 		privateKeyPath = config.PrivateKeyPath.ValueString()
@@ -183,13 +254,20 @@ func (p *PodletProvider) Configure(
 		UseAgent:              useAgent,
 		InsecureIgnoreHostKey: insecureIgnoreHostKey,
 		Timeout:               timeout,
+		Mode:                  mode,
+		Sudo:                  sudo,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid SSH configuration", err.Error())
 		return
 	}
 
-	data := &providerData{client: client, quadletDirectory: quadletDirectory}
+	data := &providerData{
+		client:           client,
+		quadletDirectory: quadletDirectory,
+		systemctlPrefix:  systemctlPrefix,
+		installTarget:    installTarget,
+	}
 	resp.ResourceData = data
 	resp.DataSourceData = data
 }

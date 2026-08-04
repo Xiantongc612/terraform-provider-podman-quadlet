@@ -25,7 +25,7 @@ func TestVolumeRenderAndParse(t *testing.T) {
 			Copy:         types.BoolValue(false),
 		},
 	}
-	content, diagnostics := renderVolume(context.Background(), &model)
+	content, diagnostics := renderVolume(context.Background(), &model, "default.target")
 	if diagnostics.HasError() {
 		t.Fatalf("render diagnostics: %v", diagnostics)
 	}

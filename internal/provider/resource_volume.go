@@ -60,7 +60,7 @@ func (r *volumeResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a rootless Podman Quadlet volume.",
+		Description: "Manages a Podman Quadlet volume.",
 		Attributes: map[string]schema.Attribute{
 			"id":        schema.StringAttribute{Computed: true},
 			"reference": schema.StringAttribute{Computed: true, Description: "Quadlet reference for containers."},
@@ -127,7 +127,7 @@ func (r *volumeResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	content, diagnostics := renderVolume(ctx, &plan)
+	content, diagnostics := renderVolume(ctx, &plan, r.installTarget)
 	resp.Diagnostics.Append(diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -195,7 +195,7 @@ func (r *volumeResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	content, diagnostics := renderVolume(ctx, &plan)
+	content, diagnostics := renderVolume(ctx, &plan, r.installTarget)
 	resp.Diagnostics.Append(diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -251,7 +251,7 @@ func (r *volumeResource) ImportState(
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("spec"), volumeSpecModel{})...)
 }
 
-func renderVolume(ctx context.Context, model *volumeResourceModel) ([]byte, diag.Diagnostics) {
+func renderVolume(ctx context.Context, model *volumeResourceModel, target string) ([]byte, diag.Diagnostics) {
 	var diagnostics diag.Diagnostics
 	if model.Spec.Driver.IsNull() {
 		model.Spec.Driver = types.StringValue("local")
@@ -278,7 +278,7 @@ func renderVolume(ctx context.Context, model *volumeResourceModel) ([]byte, diag
 	return quadlet.Render(
 		unitSection(model.Metadata.Description),
 		quadlet.Section{Name: "Volume", Pairs: pairs},
-		installSection(),
+		installSection(target),
 	), diagnostics
 }
 

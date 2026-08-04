@@ -31,7 +31,7 @@ func TestNetworkRenderAndParse(t *testing.T) {
 			Options:    types.MapNull(types.StringType),
 		},
 	}
-	content, diagnostics := renderNetwork(context.Background(), &model)
+	content, diagnostics := renderNetwork(context.Background(), &model, "default.target")
 	if diagnostics.HasError() {
 		t.Fatalf("render diagnostics: %v", diagnostics)
 	}

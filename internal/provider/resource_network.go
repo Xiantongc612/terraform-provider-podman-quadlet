@@ -66,7 +66,7 @@ func (r *networkResource) Schema(
 	resp *resource.SchemaResponse,
 ) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a rootless Podman Quadlet network.",
+		Description: "Manages a Podman Quadlet network.",
 		Attributes: map[string]schema.Attribute{
 			"id":        schema.StringAttribute{Computed: true},
 			"reference": schema.StringAttribute{Computed: true, Description: "Quadlet reference for containers."},
@@ -137,7 +137,7 @@ func (r *networkResource) Create(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	content, diagnostics := renderNetwork(ctx, &plan)
+	content, diagnostics := renderNetwork(ctx, &plan, r.installTarget)
 	resp.Diagnostics.Append(diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -205,7 +205,7 @@ func (r *networkResource) Update(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	content, diagnostics := renderNetwork(ctx, &plan)
+	content, diagnostics := renderNetwork(ctx, &plan, r.installTarget)
 	resp.Diagnostics.Append(diagnostics...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -261,7 +261,7 @@ func (r *networkResource) ImportState(
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("spec"), networkSpecModel{})...)
 }
 
-func renderNetwork(ctx context.Context, model *networkResourceModel) ([]byte, diag.Diagnostics) {
+func renderNetwork(ctx context.Context, model *networkResourceModel, target string) ([]byte, diag.Diagnostics) {
 	var diagnostics diag.Diagnostics
 	if model.Spec.Driver.IsNull() {
 		model.Spec.Driver = types.StringValue("bridge")
@@ -289,7 +289,7 @@ func renderNetwork(ctx context.Context, model *networkResourceModel) ([]byte, di
 	return quadlet.Render(
 		unitSection(model.Metadata.Description),
 		quadlet.Section{Name: "Network", Pairs: pairs},
-		installSection(),
+		installSection(target),
 	), diagnostics
 }
 

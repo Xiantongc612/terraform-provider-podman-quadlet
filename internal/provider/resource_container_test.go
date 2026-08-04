@@ -51,7 +51,7 @@ func TestContainerRenderAndParse(t *testing.T) {
 		RestartSec: types.StringNull(),
 	}
 
-	content, diagnostics := renderContainer(context.Background(), &model)
+	content, diagnostics := renderContainer(context.Background(), &model, "default.target")
 	if diagnostics.HasError() {
 		t.Fatalf("render diagnostics: %v", diagnostics)
 	}
