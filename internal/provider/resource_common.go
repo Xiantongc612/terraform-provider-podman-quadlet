@@ -22,6 +22,7 @@ import (
 )
 
 var resourceNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+var environmentNamePattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 type metadataModel struct {
 	Name        types.String `tfsdk:"name"`
@@ -229,6 +230,14 @@ func validateMetadata(metadata metadataModel) diag.Diagnostics {
 		}
 	}
 	validateString("description", metadata.Description)
+	if !metadata.Labels.IsNull() && !metadata.Labels.IsUnknown() {
+		for key, value := range metadata.Labels.Elements() {
+			stringValue, ok := value.(types.String)
+			if !ok || containsInvalidLine(key) || containsInvalidLine(stringValue.ValueString()) {
+				diagnostics.AddError("Invalid resource label", "Label names and values must be strings without newlines or NUL bytes.")
+			}
+		}
+	}
 	return diagnostics
 }
 

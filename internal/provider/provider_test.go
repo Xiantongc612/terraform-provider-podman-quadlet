@@ -32,7 +32,7 @@ func TestSchemasAreValid(t *testing.T) {
 		t.Fatalf("invalid provider schema: %v", diagnostics)
 	}
 
-	resources := []resource.Resource{newNetworkResource(), newVolumeResource()}
+	resources := []resource.Resource{newContainerResource(), newNetworkResource(), newVolumeResource()}
 	for _, providerResource := range resources {
 		var metadataResp resource.MetadataResponse
 		providerResource.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "podlet"}, &metadataResp)
