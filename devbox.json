@@ -1,7 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
   "packages": [
+    "go@1.24",
+    "golangci-lint@latest",
     "opentofu@latest",
+    "terraform-plugin-docs@latest",
     "gitleaks@latest",
     "pre-commit@latest"
   ],
@@ -9,9 +12,30 @@
     "init_hook": [],
     "scripts": {
       "init": [
+        "go mod download",
         "pre-commit install"
       ],
+      "fmt": [
+        "gofmt -w ."
+      ],
+      "fmt:check": [
+        "test -z \"$(gofmt -l .)\""
+      ],
+      "lint": [
+        "golangci-lint run"
+      ],
+      "test": [
+        "go test ./..."
+      ],
+      "build": [
+        "go build ./cmd/terraform-provider-podlet"
+      ],
       "check": [
+        "test -z \"$(gofmt -l .)\"",
+        "go vet ./...",
+        "golangci-lint run",
+        "go test ./...",
+        "go build ./cmd/terraform-provider-podlet",
         "gitleaks git"
       ]
     }
