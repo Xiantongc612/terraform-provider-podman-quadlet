@@ -295,6 +295,7 @@ func (p *PodletProvider) Resources(context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		newContainerResource,
 		newNetworkResource,
+		newSecretResource,
 		newVolumeResource,
 	}
 }
