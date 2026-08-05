@@ -32,6 +32,7 @@ type providerModel struct {
 	Port                  types.Int64  `tfsdk:"port"`
 	PrivateKeyPath        types.String `tfsdk:"private_key_path"`
 	Password              types.String `tfsdk:"password"`
+	BecomePassword        types.String `tfsdk:"become_password"`
 	KnownHostsPath        types.String `tfsdk:"known_hosts_path"`
 	UseAgent              types.Bool   `tfsdk:"use_agent"`
 	InsecureIgnoreHostKey types.Bool   `tfsdk:"insecure_ignore_host_key"`
@@ -95,6 +96,11 @@ func (p *PodletProvider) Schema(
 				Sensitive:   true,
 				Description: "SSH password for authentication. An alternative to an SSH agent or private key.",
 			},
+			"become_password": schema.StringAttribute{
+				Optional:    true,
+				Sensitive:   true,
+				Description: "Password for sudo elevation. Required with sudo = true when the remote user is not configured for NOPASSWD sudo. Passed to sudo via standard input and never used for SSH login.",
+			},
 			"known_hosts_path": schema.StringAttribute{
 				Optional:    true,
 				Description: "Path to an OpenSSH known_hosts file. Defaults to ~/.ssh/known_hosts.",
@@ -121,7 +127,7 @@ func (p *PodletProvider) Schema(
 			},
 			"sudo": schema.BoolAttribute{
 				Optional:    true,
-				Description: "Use sudo to write system Quadlets and run systemd. Requires mode=system and NOPASSWD sudo. Defaults to false.",
+				Description: "Use sudo to write system Quadlets and run systemd. Requires mode=system; either NOPASSWD sudo or a become_password. Defaults to false.",
 			},
 		},
 	}
@@ -235,11 +241,7 @@ func (p *PodletProvider) Configure(
 	installTarget := "default.target"
 	if mode == remote.ModeSystem {
 		installTarget = "multi-user.target"
-		if sudo {
-			systemctlPrefix = "sudo systemctl"
-		} else {
-			systemctlPrefix = "systemctl"
-		}
+		systemctlPrefix = "systemctl"
 	}
 
 	privateKeyPath := ""
@@ -249,6 +251,10 @@ func (p *PodletProvider) Configure(
 	password := ""
 	if !config.Password.IsNull() && !config.Password.IsUnknown() {
 		password = config.Password.ValueString()
+	}
+	becomePassword := ""
+	if !config.BecomePassword.IsNull() && !config.BecomePassword.IsUnknown() {
+		becomePassword = config.BecomePassword.ValueString()
 	}
 	knownHostsPath := "~/.ssh/known_hosts"
 	if !config.KnownHostsPath.IsNull() && !config.KnownHostsPath.IsUnknown() {
@@ -261,6 +267,7 @@ func (p *PodletProvider) Configure(
 		Port:                  int(port),
 		PrivateKeyPath:        privateKeyPath,
 		Password:              password,
+		BecomePassword:        becomePassword,
 		KnownHostsPath:        knownHostsPath,
 		UseAgent:              useAgent,
 		InsecureIgnoreHostKey: insecureIgnoreHostKey,

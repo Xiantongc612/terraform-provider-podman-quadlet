@@ -86,7 +86,7 @@ func TestManagedLifecycleSystemMode(t *testing.T) {
 	managed := managedResource{
 		client:           client,
 		quadletDirectory: "/etc/containers/systemd",
-		systemctlPrefix:  "sudo systemctl",
+		systemctlPrefix:  "systemctl",
 		installTarget:    "multi-user.target",
 	}
 	content := quadlet.Render(quadlet.Section{Name: "Network"})
@@ -104,8 +104,8 @@ func TestManagedLifecycleSystemMode(t *testing.T) {
 		t.Fatalf("unexpected status: %#v", status)
 	}
 	for _, command := range client.commands {
-		if !strings.HasPrefix(command, "sudo systemctl ") {
-			t.Errorf("expected sudo systemctl command, got %q", command)
+		if !strings.HasPrefix(command, "systemctl ") {
+			t.Errorf("expected systemctl command, got %q", command)
 		}
 	}
 	if err := managed.delete(

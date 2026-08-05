@@ -54,6 +54,7 @@ var providerAttributeTypes = map[string]attr.Type{
 	"port":                     types.Int64Type,
 	"private_key_path":         types.StringType,
 	"password":                 types.StringType,
+	"become_password":          types.StringType,
 	"known_hosts_path":         types.StringType,
 	"use_agent":                types.BoolType,
 	"insecure_ignore_host_key": types.BoolType,
@@ -73,6 +74,7 @@ func configureResponse(ctx context.Context, values map[string]attr.Value) *provi
 		"port":                     types.Int64Null(),
 		"private_key_path":         types.StringNull(),
 		"password":                 types.StringNull(),
+		"become_password":          types.StringNull(),
 		"known_hosts_path":         types.StringNull(),
 		"use_agent":                types.BoolNull(),
 		"insecure_ignore_host_key": types.BoolNull(),
@@ -135,7 +137,7 @@ func TestConfigureSystemModeWithSudo(t *testing.T) {
 	if data.quadletDirectory != "/etc/containers/systemd" {
 		t.Fatalf("unexpected quadlet directory %q", data.quadletDirectory)
 	}
-	if data.systemctlPrefix != "sudo systemctl" {
+	if data.systemctlPrefix != "systemctl" {
 		t.Fatalf("unexpected systemctl prefix %q", data.systemctlPrefix)
 	}
 	if data.installTarget != "multi-user.target" {
@@ -223,5 +225,32 @@ func TestConfigureAcceptsPassword(t *testing.T) {
 	})
 	if _, ok := data.client.(*remote.SSHClient); !ok {
 		t.Fatalf("expected *remote.SSHClient, got %T", data.client)
+	}
+}
+
+func TestConfigureAcceptsBecomePasswordWithSudo(t *testing.T) {
+	t.Parallel()
+
+	data := configureData(t, map[string]attr.Value{
+		"mode":            types.StringValue("system"),
+		"sudo":            types.BoolValue(true),
+		"become_password": types.StringValue("hunter2"),
+	})
+	if data.systemctlPrefix != "systemctl" {
+		t.Fatalf("unexpected systemctl prefix %q", data.systemctlPrefix)
+	}
+	if _, ok := data.client.(*remote.SSHClient); !ok {
+		t.Fatalf("expected *remote.SSHClient, got %T", data.client)
+	}
+}
+
+func TestConfigureRejectsBecomePasswordWithoutSudo(t *testing.T) {
+	t.Parallel()
+
+	response := configureResponse(context.Background(), map[string]attr.Value{
+		"become_password": types.StringValue("hunter2"),
+	})
+	if !response.Diagnostics.HasError() {
+		t.Fatal("expected become-password-without-sudo error")
 	}
 }
