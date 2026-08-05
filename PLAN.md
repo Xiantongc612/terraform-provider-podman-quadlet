@@ -38,9 +38,16 @@ signing and automation, and the registry submission.
 
 ### Remaining work
 
-- Add `.github/dependabot.yml` for Go and Actions updates.
-- Add the Dependabot auto-merge workflow.
-- Configure `main` branch protection to require the `check` status.
+None.
+
+### Implemented scope
+
+- `.github/dependabot.yml` enables daily Go module and GitHub Actions updates
+  with a bounded number of open pull requests.
+- The Dependabot auto-merge workflow squash-merges `dependabot[bot]` pull
+  requests whose update type is semver-patch.
+- `main` branch protection requires the `check` status check with strict
+  up-to-date branches; no review is required.
 
 ## Registry Publishing Milestone
 

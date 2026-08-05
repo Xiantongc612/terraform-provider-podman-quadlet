@@ -14,6 +14,17 @@ The `devbox.json` scripts (`devbox run check`, `devbox run test`, `devbox run
 lint`, `devbox run build`, `devbox run docs`) already wrap the full workflow and
 should be preferred where possible.
 
+## CI and Dependency Automation
+
+- `devbox run check` runs on every pull request and push to `main` in GitHub
+  Actions, and `main` requires the `check` status check to pass.
+- Dependabot opens daily Go module and GitHub Actions update pull requests.
+  Semver-patch updates are squash-merged automatically; minor and major updates
+  are reviewed manually, so never push directly to a Dependabot branch expecting
+  it to auto-merge.
+- Do not modify `.github/dependabot.yml` or the auto-merge workflow without
+  keeping the patch-only auto-merge contract.
+
 ## Registry Publishing
 
 The provider is published on the OpenTofu Registry as

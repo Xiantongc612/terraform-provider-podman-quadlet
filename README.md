@@ -186,6 +186,13 @@ Then set `TF_CLI_CONFIG_FILE` to that file when running OpenTofu. The opt-in
 and optionally SSH path and port environment variables for a prepared rootless
 Podman host.
 
+## Continuous Integration
+
+Pull requests and pushes to `main` run `devbox run check` in GitHub Actions,
+and `main` requires that check to pass. Dependabot proposes daily Go module and
+GitHub Actions updates; semver-patch updates are squash-merged automatically
+once the check passes, while minor and major updates are reviewed manually.
+
 ## Limitations
 
 - Encrypted private keys and jump hosts are not yet supported.
