@@ -340,6 +340,23 @@ func (c *SSHClient) Run(ctx context.Context, command string) (string, error) {
 	return strings.TrimSpace(string(output)), err
 }
 
+// RunWithInput executes a command with input written to its standard input and
+// returns its combined output. When the client elevates with a become password,
+// the password is written first and the input follows unchanged.
+func (c *SSHClient) RunWithInput(ctx context.Context, command string, input []byte) (string, error) {
+	client, err := c.dial(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = client.Close() }()
+	elevatedCommand, elevatedInput := c.elevatedCommand(command)
+	combined := make([]byte, 0, len(elevatedInput)+len(input))
+	combined = append(combined, elevatedInput...)
+	combined = append(combined, input...)
+	output, err := c.exec(ctx, client, elevatedCommand, combined)
+	return strings.TrimSpace(string(output)), err
+}
+
 // rawRun executes a command and returns its combined output without trimming.
 func (c *SSHClient) rawRun(ctx context.Context, command string) ([]byte, error) {
 	client, err := c.dial(ctx)

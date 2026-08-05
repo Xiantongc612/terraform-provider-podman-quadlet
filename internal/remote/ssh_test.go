@@ -144,6 +144,62 @@ func TestSSHClientBecomePassword(t *testing.T) {
 	}
 }
 
+func TestSSHClientRunWithInputBecomePassword(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate host key: %v", err)
+	}
+	signer, err := ssh.NewSignerFromKey(privateKey)
+	if err != nil {
+		t.Fatalf("create host key signer: %v", err)
+	}
+
+	serverConfig := &ssh.ServerConfig{
+		PasswordCallback: func(_ ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			if string(password) == "secret" {
+				return nil, nil
+			}
+			return nil, errors.New("password rejected")
+		},
+	}
+	serverConfig.AddHostKey(signer)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go acceptSSHConnections(listener, serverConfig, true)
+
+	base := SSHConfig{
+		Host:                  "127.0.0.1",
+		User:                  "test",
+		Port:                  listener.Addr().(*net.TCPAddr).Port,
+		UseAgent:              false,
+		Password:              "secret",
+		InsecureIgnoreHostKey: true,
+		Timeout:               5 * time.Second,
+		Mode:                  ModeSystem,
+		Sudo:                  true,
+		BecomePassword:        "become-secret",
+	}
+	client, err := NewSSHClient(base)
+	if err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+	output, err := client.RunWithInput(context.Background(), "podman secret create mysecret -", []byte("secret-value"))
+	if err != nil {
+		t.Fatalf("run with input: %v", err)
+	}
+	if !strings.Contains(output, "sudo -S -p '' podman secret create mysecret -") {
+		t.Fatalf("expected sudo -S command, got %q", output)
+	}
+	if !strings.Contains(output, "become-secret\nsecret-value") {
+		t.Fatalf("expected password then input on stdin, got %q", output)
+	}
+}
+
 func TestElevatedCommand(t *testing.T) {
 	t.Parallel()
 

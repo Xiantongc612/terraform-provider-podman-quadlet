@@ -15,4 +15,5 @@ type Client interface {
 	WriteFile(context.Context, string, []byte) error
 	RemoveFile(context.Context, string) error
 	Run(context.Context, string) (string, error)
+	RunWithInput(context.Context, string, []byte) (string, error)
 }

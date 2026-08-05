@@ -10,8 +10,9 @@ import (
 )
 
 type fakeRemote struct {
-	files    map[string][]byte
-	commands []string
+	files     map[string][]byte
+	commands  []string
+	lastInput []byte
 }
 
 func (f *fakeRemote) ReadFile(_ context.Context, path string) ([]byte, error) {
@@ -38,6 +39,15 @@ func (f *fakeRemote) Run(_ context.Context, command string) (string, error) {
 		return "LoadState=loaded\nActiveState=active\nSubState=running", nil
 	}
 	return "", nil
+}
+
+func (f *fakeRemote) RunWithInput(_ context.Context, command string, input []byte) (string, error) {
+	f.commands = append(f.commands, command)
+	f.lastInput = input
+	if strings.Contains(command, " inspect ") {
+		return "", nil
+	}
+	return "inspect-result", nil
 }
 
 func TestManagedLifecycle(t *testing.T) {
