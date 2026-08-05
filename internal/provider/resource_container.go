@@ -55,6 +55,7 @@ type containerSpecModel struct {
 	Hostname         types.String           `tfsdk:"hostname"`
 	HealthCheck      *containerHealthModel  `tfsdk:"health_check"`
 	Service          *containerServiceModel `tfsdk:"service"`
+	Secrets          []containerSecretModel `tfsdk:"secret"`
 }
 
 type containerPortModel struct {
@@ -82,6 +83,15 @@ type containerHealthModel struct {
 type containerServiceModel struct {
 	Restart    types.String `tfsdk:"restart"`
 	RestartSec types.String `tfsdk:"restart_sec"`
+}
+
+type containerSecretModel struct {
+	Name   types.String `tfsdk:"name"`
+	Type   types.String `tfsdk:"type"`
+	Target types.String `tfsdk:"target"`
+	UID    types.Int64  `tfsdk:"uid"`
+	GID    types.Int64  `tfsdk:"gid"`
+	Mode   types.String `tfsdk:"mode"`
 }
 
 func newContainerResource() resource.Resource {
@@ -153,6 +163,16 @@ func (r *containerResource) Schema(
 							"restart":     schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("on-failure"), Description: "Systemd restart policy. Defaults to on-failure."},
 							"restart_sec": schema.StringAttribute{Optional: true},
 						},
+					},
+					"secret": schema.ListNestedBlock{
+						NestedObject: schema.NestedBlockObject{Attributes: map[string]schema.Attribute{
+							"name":   schema.StringAttribute{Required: true, Description: "Name of a managed podman-quadlet_secret."},
+							"type":   schema.StringAttribute{Optional: true, Computed: true, Default: stringdefault.StaticString("mount"), Description: "One of mount or env. Defaults to mount."},
+							"target": schema.StringAttribute{Optional: true, Description: "Container mount path or environment variable name."},
+							"uid":    schema.Int64Attribute{Optional: true, Description: "UID of the mounted secret file."},
+							"gid":    schema.Int64Attribute{Optional: true, Description: "GID of the mounted secret file."},
+							"mode":   schema.StringAttribute{Optional: true, Description: "Octal permissions of the mounted secret file."},
+						}},
 					},
 				},
 			},
@@ -363,6 +383,12 @@ func renderContainer(ctx context.Context, model *containerResourceModel, target 
 	for _, network := range networks {
 		pairs = append(pairs, quadlet.Pair{Key: "Network", Value: network})
 	}
+	for index := range model.Spec.Secrets {
+		if model.Spec.Secrets[index].Type.IsNull() {
+			model.Spec.Secrets[index].Type = types.StringValue("mount")
+		}
+		pairs = append(pairs, quadlet.Pair{Key: "Secret", Value: renderSecret(model.Spec.Secrets[index])})
+	}
 	pairs = append(pairs, optionalStringPairs(map[string]types.String{
 		"HostName":   model.Spec.Hostname,
 		"User":       model.Spec.User,
@@ -438,6 +464,14 @@ func parseContainer(content []byte, name string) (*containerResourceModel, error
 		}
 		mounts = append(mounts, mount)
 	}
+	secrets := make([]containerSecretModel, 0, len(containerPairs["Secret"]))
+	for _, value := range containerPairs["Secret"] {
+		secret, parseErr := parseSecret(value)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		secrets = append(secrets, secret)
+	}
 	environment := make(map[string]string)
 	for _, encoded := range containerPairs["Environment"] {
 		value, decodeErr := decodeToken(encoded)
@@ -472,6 +506,7 @@ func parseContainer(content []byte, name string) (*containerResourceModel, error
 			EnvironmentFiles: stringListValue(environmentFiles),
 			Ports:            ports,
 			Mounts:           mounts,
+			Secrets:          secrets,
 			Networks:         stringSetValue(containerPairs["Network"]),
 			User:             optionalStringValue(first(containerPairs, "User")),
 			WorkingDirectory: optionalStringValue(first(containerPairs, "WorkingDir")),
@@ -510,6 +545,25 @@ func validateContainerSpec(ctx context.Context, spec containerSpecModel, diagnos
 		}
 		if !mount.Target.IsUnknown() && (mount.Target.IsNull() || !strings.HasPrefix(mount.Target.ValueString(), "/") || containsInvalidLine(mount.Target.ValueString())) {
 			diagnostics.AddError("Invalid mount target", "mount.target must be an absolute container path on one line.")
+		}
+	}
+	for _, secret := range spec.Secrets {
+		if !secret.Name.IsUnknown() && (secret.Name.IsNull() || containsInvalidLine(secret.Name.ValueString())) {
+			diagnostics.AddError("Invalid secret name", "secret.name is required and must be a single line.")
+		}
+		if !secret.Type.IsNull() && !secret.Type.IsUnknown() && !oneOf(secret.Type.ValueString(), "mount", "env") {
+			diagnostics.AddError("Invalid secret type", "secret.type must be mount or env.")
+		}
+		if !secret.Target.IsNull() && !secret.Target.IsUnknown() && containsInvalidLine(secret.Target.ValueString()) {
+			diagnostics.AddError("Invalid secret target", "secret.target must be a single line.")
+		}
+		for label, value := range map[string]types.Int64{"uid": secret.UID, "gid": secret.GID} {
+			if !value.IsNull() && !value.IsUnknown() && value.ValueInt64() < 0 {
+				diagnostics.AddError("Invalid secret "+label, "secret."+label+" must not be negative.")
+			}
+		}
+		if !secret.Mode.IsNull() && !secret.Mode.IsUnknown() && containsInvalidLine(secret.Mode.ValueString()) {
+			diagnostics.AddError("Invalid secret mode", "secret.mode must be a single line.")
 		}
 	}
 	for label, value := range map[string]types.String{
@@ -608,6 +662,23 @@ func renderMount(ctx context.Context, mount containerMountModel) (string, diag.D
 	return value, diagnostics
 }
 
+func renderSecret(secret containerSecretModel) string {
+	value := secret.Name.ValueString() + ",type=" + secret.Type.ValueString()
+	if !secret.Target.IsNull() && secret.Target.ValueString() != "" {
+		value += ",target=" + secret.Target.ValueString()
+	}
+	if !secret.UID.IsNull() && !secret.UID.IsUnknown() {
+		value += ",uid=" + strconv.FormatInt(secret.UID.ValueInt64(), 10)
+	}
+	if !secret.GID.IsNull() && !secret.GID.IsUnknown() {
+		value += ",gid=" + strconv.FormatInt(secret.GID.ValueInt64(), 10)
+	}
+	if !secret.Mode.IsNull() && secret.Mode.ValueString() != "" {
+		value += ",mode=" + secret.Mode.ValueString()
+	}
+	return value
+}
+
 func parseMount(value string) (containerMountModel, error) {
 	parts := strings.SplitN(value, ":", 3)
 	if len(parts) < 2 {
@@ -630,6 +701,48 @@ func parseMount(value string) (containerMountModel, error) {
 		ReadOnly: types.BoolValue(readOnly),
 		Options:  stringListValue(options),
 	}, nil
+}
+
+func parseSecret(value string) (containerSecretModel, error) {
+	parts := strings.Split(value, ",")
+	if len(parts) == 0 || parts[0] == "" {
+		return containerSecretModel{}, fmt.Errorf("invalid Secret value %q", value)
+	}
+	secret := containerSecretModel{
+		Name:   types.StringValue(parts[0]),
+		Type:   types.StringValue("mount"),
+		Target: types.StringNull(),
+		UID:    types.Int64Null(),
+		GID:    types.Int64Null(),
+		Mode:   types.StringNull(),
+	}
+	for _, part := range parts[1:] {
+		key, itemValue, found := strings.Cut(part, "=")
+		if !found {
+			return containerSecretModel{}, fmt.Errorf("invalid Secret option %q in %q", part, value)
+		}
+		switch key {
+		case "type":
+			secret.Type = types.StringValue(itemValue)
+		case "target":
+			secret.Target = types.StringValue(itemValue)
+		case "uid", "gid":
+			number, err := strconv.ParseInt(itemValue, 10, 64)
+			if err != nil {
+				return containerSecretModel{}, fmt.Errorf("invalid Secret %s %q in %q", key, itemValue, value)
+			}
+			if key == "uid" {
+				secret.UID = types.Int64Value(number)
+			} else {
+				secret.GID = types.Int64Value(number)
+			}
+		case "mode":
+			secret.Mode = types.StringValue(itemValue)
+		default:
+			return containerSecretModel{}, fmt.Errorf("unsupported Secret option %q in %q", key, value)
+		}
+	}
+	return secret, nil
 }
 
 func encodeArguments(values []string) string {
@@ -744,6 +857,7 @@ func emptyContainerSpec() containerSpecModel {
 		Hostname:         types.StringNull(),
 		HealthCheck:      nil,
 		Service:          nil,
+		Secrets:          nil,
 	}
 }
 

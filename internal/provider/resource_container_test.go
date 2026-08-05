@@ -50,6 +50,14 @@ func TestContainerRenderAndParse(t *testing.T) {
 		Restart:    types.StringValue("on-failure"),
 		RestartSec: types.StringNull(),
 	}
+	model.Spec.Secrets = []containerSecretModel{{
+		Name:   types.StringValue("db"),
+		Type:   types.StringValue("env"),
+		Target: types.StringNull(),
+		UID:    types.Int64Null(),
+		GID:    types.Int64Null(),
+		Mode:   types.StringNull(),
+	}}
 
 	content, diagnostics := renderContainer(context.Background(), &model, "default.target")
 	if diagnostics.HasError() {
@@ -64,6 +72,7 @@ func TestContainerRenderAndParse(t *testing.T) {
 		"PublishPort=127.0.0.1:8080:80/tcp",
 		"Volume=service-data.volume:/var/lib/service:ro",
 		"Network=service.network",
+		"Secret=db,type=env",
 		"Restart=on-failure",
 	} {
 		if !strings.Contains(text, expected) {
@@ -84,6 +93,54 @@ func TestContainerRenderAndParse(t *testing.T) {
 	}
 	if len(parsed.Spec.Mounts) != 1 || !parsed.Spec.Mounts[0].ReadOnly.ValueBool() {
 		t.Fatalf("unexpected parsed mounts: %#v", parsed.Spec.Mounts)
+	}
+	if len(parsed.Spec.Secrets) != 1 || parsed.Spec.Secrets[0].Type.ValueString() != "env" {
+		t.Fatalf("unexpected parsed secrets: %#v", parsed.Spec.Secrets)
+	}
+}
+
+func TestSecretRenderParseRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	secrets := []containerSecretModel{
+		{
+			Name:   types.StringValue("db"),
+			Type:   types.StringValue("mount"),
+			Target: types.StringNull(),
+			UID:    types.Int64Null(),
+			GID:    types.Int64Null(),
+			Mode:   types.StringNull(),
+		},
+		{
+			Name:   types.StringValue("api-token"),
+			Type:   types.StringValue("env"),
+			Target: types.StringValue("API_TOKEN"),
+			UID:    types.Int64Null(),
+			GID:    types.Int64Null(),
+			Mode:   types.StringNull(),
+		},
+		{
+			Name:   types.StringValue("certs"),
+			Type:   types.StringValue("mount"),
+			Target: types.StringValue("/run/secrets/certs"),
+			UID:    types.Int64Value(1000),
+			GID:    types.Int64Value(1000),
+			Mode:   types.StringValue("0400"),
+		},
+	}
+	for _, secret := range secrets {
+		parsed, err := parseSecret(renderSecret(secret))
+		if err != nil {
+			t.Fatalf("parseSecret returned an error for %q: %v", renderSecret(secret), err)
+		}
+		if parsed.Name.ValueString() != secret.Name.ValueString() ||
+			parsed.Type.ValueString() != secret.Type.ValueString() ||
+			parsed.Target.ValueString() != secret.Target.ValueString() ||
+			parsed.UID.ValueInt64() != secret.UID.ValueInt64() ||
+			parsed.GID.ValueInt64() != secret.GID.ValueInt64() ||
+			parsed.Mode.ValueString() != secret.Mode.ValueString() {
+			t.Errorf("round trip mismatch for %q: got %#v", renderSecret(secret), parsed)
+		}
 	}
 }
 

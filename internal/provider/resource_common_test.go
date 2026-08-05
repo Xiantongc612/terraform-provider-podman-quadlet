@@ -38,6 +38,9 @@ func (f *fakeRemote) Run(_ context.Context, command string) (string, error) {
 	if strings.Contains(command, " show ") {
 		return "LoadState=loaded\nActiveState=active\nSubState=running", nil
 	}
+	if strings.Contains(command, " inspect ") {
+		return `[{"ID":"inspect-id","CreatedAt":"2024-01-01T00:00:00Z","Spec":{"Name":"test-secret","Driver":{"Name":"file","Options":null},"Labels":{}}}]`, nil
+	}
 	return "", nil
 }
 
@@ -47,7 +50,7 @@ func (f *fakeRemote) RunWithInput(_ context.Context, command string, input []byt
 	if strings.Contains(command, " inspect ") {
 		return "", nil
 	}
-	return "inspect-result", nil
+	return "created-id", nil
 }
 
 func TestManagedLifecycle(t *testing.T) {
