@@ -89,6 +89,27 @@ func withSudo(config SSHConfig, sudo bool) SSHConfig {
 	return config
 }
 
+func TestNewSSHClientBecomePasswordValidation(t *testing.T) {
+	t.Parallel()
+
+	base := SSHConfig{
+		Host:                  "example.com",
+		User:                  "containers",
+		Port:                  22,
+		UseAgent:              true,
+		InsecureIgnoreHostKey: true,
+		Timeout:               30 * time.Second,
+		Mode:                  ModeSystem,
+		BecomePassword:        "hunter2",
+	}
+	if _, err := NewSSHClient(base); err == nil {
+		t.Fatal("expected become-password-without-sudo error")
+	}
+	if _, err := NewSSHClient(withSudo(base, true)); err != nil {
+		t.Fatalf("become password with sudo failed: %v", err)
+	}
+}
+
 func TestNewSSHClientDefaultsToUserMode(t *testing.T) {
 	t.Parallel()
 

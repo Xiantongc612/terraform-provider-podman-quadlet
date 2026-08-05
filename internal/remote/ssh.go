@@ -37,6 +37,7 @@ type SSHConfig struct {
 	Mode                  string
 	Sudo                  bool
 	Password              string
+	BecomePassword        string
 }
 
 // SSHClient performs remote operations using a new SSH connection per operation.
@@ -55,6 +56,9 @@ func NewSSHClient(config SSHConfig) (*SSHClient, error) {
 	}
 	if config.Sudo && config.Mode != ModeSystem {
 		return nil, fmt.Errorf("sudo is only supported when mode is %q", ModeSystem)
+	}
+	if config.BecomePassword != "" && !config.Sudo {
+		return nil, errors.New("become_password is only supported when sudo is enabled")
 	}
 	if config.Host == "" {
 		return nil, errors.New("host must not be empty")
@@ -169,7 +173,7 @@ func (c *SSHClient) hostKeyCallback() (ssh.HostKeyCallback, error) {
 // absolute path when the client elevates with sudo.
 func (c *SSHClient) ReadFile(ctx context.Context, filePath string) ([]byte, error) {
 	if c.elevate {
-		output, err := c.rawRun(ctx, "sudo cat "+ShellQuote(filePath))
+		output, err := c.rawRun(ctx, "cat "+ShellQuote(filePath))
 		if err != nil {
 			if strings.Contains(err.Error(), "No such file or directory") {
 				return nil, ErrNotFound
@@ -292,7 +296,7 @@ func (c *SSHClient) writeFileElevated(ctx context.Context, filePath string, cont
 		_ = sftpClient.Remove(stagingPath)
 		return fmt.Errorf("close staging file: %w", err)
 	}
-	if _, err := c.exec(ctx, client, "sudo install -D -m 0644 "+ShellQuote(stagingPath)+" "+ShellQuote(filePath)); err != nil {
+	if _, err := c.runCommand(ctx, client, "install -D -m 0644 "+ShellQuote(stagingPath)+" "+ShellQuote(filePath)); err != nil {
 		_ = sftpClient.Remove(stagingPath)
 		return fmt.Errorf("install remote file %q: %w", filePath, err)
 	}
@@ -306,7 +310,7 @@ func (c *SSHClient) writeFileElevated(ctx context.Context, filePath string, cont
 // absolute path when the client elevates with sudo.
 func (c *SSHClient) RemoveFile(ctx context.Context, filePath string) error {
 	if c.elevate {
-		if _, err := c.Run(ctx, "sudo rm -f "+ShellQuote(filePath)); err != nil {
+		if _, err := c.Run(ctx, "rm -f "+ShellQuote(filePath)); err != nil {
 			return fmt.Errorf("remove remote file %q: %w", filePath, err)
 		}
 		return nil
@@ -343,16 +347,50 @@ func (c *SSHClient) rawRun(ctx context.Context, command string) ([]byte, error) 
 		return nil, err
 	}
 	defer func() { _ = client.Close() }()
-	return c.exec(ctx, client, command)
+	return c.runCommand(ctx, client, command)
 }
 
-// exec runs a command on an established SSH connection.
-func (c *SSHClient) exec(ctx context.Context, client *ssh.Client, command string) ([]byte, error) {
+// runCommand runs a command on an established SSH connection, wrapping it with
+// sudo when the client elevates.
+func (c *SSHClient) runCommand(ctx context.Context, client *ssh.Client, command string) ([]byte, error) {
+	command, input := c.elevatedCommand(command)
+	return c.exec(ctx, client, command, input)
+}
+
+// elevatedCommand prefixes a command with sudo when the client elevates. When a
+// become password is configured, sudo reads it from standard input instead of a
+// terminal so it never appears on the remote command line.
+func (c *SSHClient) elevatedCommand(command string) (string, []byte) {
+	if !c.elevate {
+		return command, nil
+	}
+	if c.config.BecomePassword == "" {
+		return "sudo " + command, nil
+	}
+	return "sudo -S -p '' " + command, []byte(c.config.BecomePassword + "\n")
+}
+
+// exec runs a command on an established SSH connection. A non-nil input is
+// written to the remote command's standard input before it is closed.
+func (c *SSHClient) exec(ctx context.Context, client *ssh.Client, command string, input []byte) ([]byte, error) {
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("create SSH session: %w", err)
 	}
 	defer func() { _ = session.Close() }()
+
+	if input != nil {
+		stdin, err := session.StdinPipe()
+		if err != nil {
+			return nil, fmt.Errorf("open SSH session stdin: %w", err)
+		}
+		go func() {
+			if len(input) > 0 {
+				_, _ = stdin.Write(input)
+			}
+			_ = stdin.Close()
+		}()
+	}
 
 	type result struct {
 		output []byte
