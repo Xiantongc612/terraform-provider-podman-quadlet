@@ -1,95 +1,85 @@
-# Implementation Plan
+# Plan
 
-The initial provider implementation is complete. It exposes typed container,
-network, and volume resources; manages rootless and rootful Quadlets over SSH;
-reconciles their user or system systemd units; supports imports and drift
-refresh; and includes Devbox tooling, generated schema documentation, examples,
-unit tests, opt-in SSH integration coverage, and CI.
+The provider is implemented. It exposes typed container, network, and volume
+resources, manages rootless user and rootful system Quadlets over SSH, and
+reconciles their systemd units with ownership protection, drift refresh, and
+import. SSH agent, private-key, and password authentication are supported,
+including `become_password` sudo elevation. The repository, Go module, provider
+type, and address were renamed to `podman-quadlet` on
+`registry.opentofu.org/xiantongc612/podman-quadlet`.
 
-## Implemented: dual-mode (rootless / rootful) support
+CI runs `devbox run check` on every pull request and push to `main`. The active
+work is the first registry release: the real-host validation gate, release
+signing and automation, and the registry submission.
 
-Provider attributes `mode` (`"user"` / `"system"`) and `sudo` enclose all
-mode-dependent behavior:
+## Constraints
 
-- Quadlet directory defaults: `.config/containers/systemd` (user) /
-  `/etc/containers/systemd` (system).
-- systemctl prefix: `systemctl --user` (user) / `systemctl` (system). Elevation
-  is owned by the SSH client, which wraps every system-mode command with `sudo`
-  and feeds `become_password` via `sudo -S` standard input when configured.
-- WantedBy target: `default.target` (user) / `multi-user.target` (system).
-- File-write elevation: direct SFTP for root logins; staged `sudo install` for
-  sudo (NOPASSWD or password-driven via `become_password`).
-- The `Client` interface stays unchanged; elevation branches inside SSHClient
-  and the provider lifecycle layer.
+- The provider only rewrites or deletes files it generated; unmarked remote
+  files are never replaced.
+- The target host must already have Podman, Quadlet, and a working systemd
+  session; the provider does not provision hosts or install Podman.
+- Resource type names follow the hyphenated provider type (`podman-quadlet_*`);
+  OpenTofu derives the provider type from the resource-type prefix.
+- The OpenTofu Registry requires a `{owner}/terraform-provider-{name}`
+  repository, a semver release, and GPG-signed checksums.
+- Dependency updates merge only after the required `check` status passes;
+  semver-patch updates auto-merge, everything else is reviewed.
 
-## Implemented: SSH password authentication
+## Dependency Automation Milestone
 
-A `password` provider attribute enables password-based SSH logins, alongside
-the existing agent and unencrypted-key methods. Authentication is exercised by
-an in-process SSH server test in the remote package.
+### Approved contracts
 
-## Local Demo
+- Dependabot updates the Go module and GitHub Actions daily, with a bounded
+  number of open pull requests.
+- Auto-merge is limited to semver-patch updates, uses squash merges, and only
+  applies to `dependabot[bot]` pull requests.
+- `main` requires the `check` status check before merging; no review is
+  required.
 
-`devbox run dev` builds the provider and runs a small hello-world demo against a
-rootless Podman host. It targets `127.0.0.1` with the current user by default.
-Configuration is read from the gitignored `.env.op` file through the 1Password
-CLI: when `op` is installed the demo re-executes under
-`op run --env-file=.env.op`, so secret references such as
-`PODLET_DEMO_PASSWORD=op://Vault/Item/field` are resolved ephemerally and never
-persisted. `PODLET_DEMO_HOST`, `PODLET_DEMO_USER`, `PODLET_DEMO_PORT`,
-`PODLET_DEMO_KEY_PATH`, `PODLET_DEMO_PASSWORD`, and `PODLET_DEMO_KEEP` are
-supported. The demo requires Podman and user systemd lingering
-(`sudo loginctl enable-linger $USER`) on the host. It applies the container in
-`examples/demo`, prints the served greeting, then destroys everything on exit
-unless `PODLET_DEMO_KEEP=1` is set.
+### Remaining work
 
-## Registry Publishing Plan (approved)
+- Add `.github/dependabot.yml` for Go and Actions updates.
+- Add the Dependabot auto-merge workflow.
+- Configure `main` branch protection to require the `check` status.
 
-Decisions: namespace `xiantongc612`, first release `v0.1.0`, GoReleaser for
-release tooling, six platform targets (`linux`/`darwin`/`windows` ×
-`amd64`/`arm64`), and a real-host apply/destroy before tagging.
+## Registry Publishing Milestone
 
-0. **Real-host validation (gate).** Run full create/update/drift/import/delete
-   for user mode (rootless host) and system mode (root login, NOPASSWD sudo,
-   and password-driven `become_password`). Record the supported Podman version
-   range.
-1. **Rename and re-address.** Rename the repository to
-   `terraform-provider-podman-quadlet`, update the Go module path, the provider
-   address to `registry.opentofu.org/xiantongc612/podman-quadlet`, and all docs
-   and examples.
-2. **GPG signing key.** Generate a release signing key, store the private key
-   in repository Actions secrets, and keep the ASCII-armored public key for the
-   registry submission.
-3. **Release automation.** Add `terraform-registry-manifest.json`,
-   `.goreleaser.yml`, and a `v*` tag workflow producing per-platform zips,
-   `SHA256SUMS`, and a GPG-signed `SHA256SUMS.sig`.
-4. **Tag and push** `v0.1.0`; confirm the release assets.
-5. **Registry submission.** Submit the provider and the signing key through the
-   `opentofu/registry` issue forms (web UI only).
-6. **Verify from the registry.** `tofu init` and apply using
-   `registry.opentofu.org/xiantongc612/podman-quadlet`.
+### Approved contracts
 
-## Before First Release
+- Namespace `xiantongc612`, first release `v0.1.0`, GoReleaser for release
+  tooling, six platform targets (`linux`/`darwin`/`windows` × `amd64`/`arm64`),
+  and a real-host apply/destroy gate before tagging.
+- The provider and signing key are submitted through the `opentofu/registry`
+  issue forms (web UI only).
 
-- Run `devbox run integration` against a prepared rootless Podman host and verify
-  its SSH, SFTP, Podman, and user systemd prerequisites.
-- Run the extended SSH integration against a prepared system-mode host with root
-  login, NOPASSWD sudo, or password-driven `become_password` (`PODLET_TEST_SUDO=1`
-  and `PODLET_TEST_BECOME_PASSWORD`) to verify elevated file operations.
-- Add end-to-end acceptance coverage for create, update, drift refresh, import,
-  and delete on those hosts.
-- Establish the supported Podman version range and test the generated Quadlet
-  directives against each supported release.
-- Rename the repository to `terraform-provider-podman-quadlet` and update provider
-  addresses, module paths, documentation, and examples.
-- Add signed release artifacts, checksums, and OpenTofu Registry
-  publishing automation.
+### Remaining work
 
-## Deferred Decisions
+- Run the real-host validation gate for user and system modes and record the
+  supported Podman version range.
+- Generate the release GPG signing key, store the private key in repository
+  Actions secrets, and keep the armored public key for the submission.
+- Add `terraform-registry-manifest.json`, `.goreleaser.yml`, and a `v*` release
+  workflow producing per-platform zips, `SHA256SUMS`, and a GPG-signed
+  `SHA256SUMS.sig`.
+- Tag and push `v0.1.0` and confirm the release assets.
+- Submit the provider and the signing key through the registry issue forms.
+- Verify `tofu init` and apply using
+  `registry.opentofu.org/xiantongc612/podman-quadlet`.
+
+### Implemented scope
+
+- The repository was renamed to `terraform-provider-podman-quadlet`; the Go
+  module, provider type, address, resources, generated docs, and examples now
+  use `podman-quadlet`.
+
+## Long-Term Goals
 
 - Encrypted private keys and jump hosts.
 - Quadlet pod, image, build, kube, and artifact resources.
 - A generic manifest escape hatch for unsupported Quadlet directives.
+
+## Deferred Design Decisions
+
 - Secret delivery that does not persist values in OpenTofu state.
 - Fleet-wide orchestration beyond Terraform provider aliases.
 - Automatic Podman installation or remote host provisioning.
