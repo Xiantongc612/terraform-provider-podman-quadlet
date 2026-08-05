@@ -53,7 +53,7 @@ type secretInspect struct {
 	ID        string `json:"ID"`
 	CreatedAt string `json:"CreatedAt"`
 	Spec      struct {
-		Name   string            `json:"Name"`
+		Name   string `json:"Name"`
 		Driver struct {
 			Name    string            `json:"Name"`
 			Options map[string]string `json:"Options"`
@@ -138,21 +138,25 @@ func (r *secretResource) ValidateConfig(
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if config.Spec.Value.IsNull() || config.Spec.Value.IsUnknown() {
-		resp.Diagnostics.AddError("Missing secret value", "spec.value is required.")
+	validateSecretSpec(ctx, config.Spec, &resp.Diagnostics)
+}
+
+func validateSecretSpec(ctx context.Context, spec secretSpecModel, diagnostics *diag.Diagnostics) {
+	if spec.Value.IsNull() || spec.Value.IsUnknown() {
+		diagnostics.AddError("Missing secret value", "spec.value is required.")
 		return
 	}
-	if len(config.Spec.Value.ValueString()) > maxSecretBytes {
-		resp.Diagnostics.AddError("Invalid secret value", fmt.Sprintf("spec.value must be at most %d bytes.", maxSecretBytes))
+	if len(spec.Value.ValueString()) > maxSecretBytes {
+		diagnostics.AddError("Invalid secret value", fmt.Sprintf("spec.value must be at most %d bytes.", maxSecretBytes))
 	}
-	if !config.Spec.Driver.IsNull() && !config.Spec.Driver.IsUnknown() && containsInvalidLine(config.Spec.Driver.ValueString()) {
-		resp.Diagnostics.AddError("Invalid secret driver", "spec.driver must be a single line.")
+	if !spec.Driver.IsNull() && !spec.Driver.IsUnknown() && containsInvalidLine(spec.Driver.ValueString()) {
+		diagnostics.AddError("Invalid secret driver", "spec.driver must be a single line.")
 	}
-	driverOpts, driverOptDiagnostics := mapValues(ctx, config.Spec.DriverOpts)
-	resp.Diagnostics.Append(driverOptDiagnostics...)
+	driverOpts, driverOptDiagnostics := mapValues(ctx, spec.DriverOpts)
+	diagnostics.Append(driverOptDiagnostics...)
 	for key, value := range driverOpts {
 		if containsInvalidLine(key) || containsInvalidLine(value) {
-			resp.Diagnostics.AddError("Invalid secret driver option", "driver option names and values must be single lines.")
+			diagnostics.AddError("Invalid secret driver option", "driver option names and values must be single lines.")
 		}
 	}
 }
