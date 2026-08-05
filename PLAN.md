@@ -13,11 +13,12 @@ mode-dependent behavior:
 
 - Quadlet directory defaults: `.config/containers/systemd` (user) /
   `/etc/containers/systemd` (system).
-- systemctl prefix: `systemctl --user` (user) / `sudo systemctl` (system sudo) /
-  `systemctl` (system root login).
+- systemctl prefix: `systemctl --user` (user) / `systemctl` (system). Elevation
+  is owned by the SSH client, which wraps every system-mode command with `sudo`
+  and feeds `become_password` via `sudo -S` standard input when configured.
 - WantedBy target: `default.target` (user) / `multi-user.target` (system).
 - File-write elevation: direct SFTP for root logins; staged `sudo install` for
-  NOPASSWD sudo. Both root SSH login and NOPASSWD-sudo are first-class.
+  sudo (NOPASSWD or password-driven via `become_password`).
 - The `Client` interface stays unchanged; elevation branches inside SSHClient
   and the provider lifecycle layer.
 
@@ -49,8 +50,9 @@ release tooling, six platform targets (`linux`/`darwin`/`windows` ×
 `amd64`/`arm64`), and a real-host apply/destroy before tagging.
 
 0. **Real-host validation (gate).** Run full create/update/drift/import/delete
-   for user mode (rootless host) and system mode (root login and NOPASSWD
-   sudo). Record the supported Podman version range.
+   for user mode (rootless host) and system mode (root login, NOPASSWD sudo,
+   and password-driven `become_password`). Record the supported Podman version
+   range.
 1. **Rename and re-address.** Rename the repository to
    `terraform-provider-podlet`, update the Go module path, the provider address
    to `registry.opentofu.org/xiantongc612/podlet`, and all docs and examples.
@@ -71,7 +73,8 @@ release tooling, six platform targets (`linux`/`darwin`/`windows` ×
 - Run `devbox run integration` against a prepared rootless Podman host and verify
   its SSH, SFTP, Podman, and user systemd prerequisites.
 - Run the extended SSH integration against a prepared system-mode host with root
-  login or NOPASSWD sudo to verify elevated file operations.
+  login, NOPASSWD sudo, or password-driven `become_password` (`PODLET_TEST_SUDO=1`
+  and `PODLET_TEST_BECOME_PASSWORD`) to verify elevated file operations.
 - Add end-to-end acceptance coverage for create, update, drift refresh, import,
   and delete on those hosts.
 - Establish the supported Podman version range and test the generated Quadlet

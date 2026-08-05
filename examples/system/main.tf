@@ -14,11 +14,18 @@ variable "user" {
   type = string
 }
 
+variable "become_password" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
 provider "podlet" {
-  host = var.host
-  user = var.user
-  mode = "system"
-  sudo = true
+  host            = var.host
+  user            = var.user
+  mode            = "system"
+  sudo            = true
+  become_password = var.become_password
 }
 
 resource "podlet_network" "service" {

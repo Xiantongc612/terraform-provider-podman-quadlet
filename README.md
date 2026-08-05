@@ -7,7 +7,8 @@ resources on remote machines.
 
 - One SSH target per provider instance, with aliases for multiple machines.
 - Dual-mode operation: rootless user Quadlets (`mode = "user"`) and rootful
-  system Quadlets (`mode = "system"`), via root SSH login or NOPASSWD sudo.
+  system Quadlets (`mode = "system"`), via root SSH login, NOPASSWD sudo, or a
+  `become_password`.
 - Strict SSH host-key verification by default.
 - SSH agent, unencrypted private-key, and password authentication.
 - Typed, Kubernetes-inspired `metadata` and `spec` blocks.
@@ -96,9 +97,10 @@ By default the provider manages rootless user Quadlets in
 `.config/containers/systemd` relative to the SSH user's home and drives systemd
 with `systemctl --user`. Set `mode = "system"` on the provider to manage rootful
 Quadlets in `/etc/containers/systemd` instead. In system mode the Quadlet files
-and `systemctl` commands are elevated with `sudo` when `sudo = true`; otherwise
-a root SSH login is required. System-mode units install into
-`multi-user.target`, user-mode units into `default.target`.
+and `systemctl` commands are elevated with `sudo` when `sudo = true`, using
+`become_password` when the remote user requires one; otherwise a root SSH login
+is required. System-mode units install into `multi-user.target`, user-mode units
+into `default.target`.
 
 Generated files contain an ownership marker. Creation and deletion refuse to
 replace an unmarked file at the managed path. During refresh, supported values
@@ -122,6 +124,10 @@ SSH agent authentication is enabled by default when `SSH_AUTH_SOCK` is set. An
 unencrypted key can be selected with `private_key_path`, or a password with
 `password`; the methods may be combined. Host keys are checked against
 `~/.ssh/known_hosts` unless `known_hosts_path` is set explicitly.
+
+When `sudo = true` for system-mode, `become_password` supplies the password for
+sudo elevation (Ansible's `become_password`). It is independent of the SSH
+`password`, is passed to sudo via standard input, and is never used to log in.
 
 `insecure_ignore_host_key = true` is available for disposable environments but
 should not be used in production.

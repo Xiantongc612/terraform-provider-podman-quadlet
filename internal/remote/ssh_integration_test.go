@@ -39,6 +39,7 @@ func TestSSHIntegration(t *testing.T) {
 		Port:           port,
 		PrivateKeyPath: os.Getenv("PODLET_TEST_PRIVATE_KEY_PATH"),
 		Password:       os.Getenv("PODLET_TEST_PASSWORD"),
+		BecomePassword: os.Getenv("PODLET_TEST_BECOME_PASSWORD"),
 		KnownHostsPath: valueOrDefault(os.Getenv("PODLET_TEST_KNOWN_HOSTS_PATH"), "~/.ssh/known_hosts"),
 		UseAgent:       true,
 		Timeout:        30 * time.Second,
