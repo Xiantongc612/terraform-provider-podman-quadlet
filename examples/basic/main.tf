@@ -42,6 +42,17 @@ resource "podman-quadlet_volume" "data" {
   }
 }
 
+resource "podman-quadlet_secret" "db" {
+  metadata {
+    name = "db"
+  }
+
+  spec {
+    value  = "change-me"
+    driver = "file"
+  }
+}
+
 resource "podman-quadlet_container" "service" {
   metadata {
     name        = "service"
@@ -54,6 +65,12 @@ resource "podman-quadlet_container" "service" {
 
     environment = {
       NGINX_ENTRYPOINT_QUIET_LOGS = "1"
+    }
+
+    secret {
+      name   = podman-quadlet_secret.db.metadata.name
+      type   = "env"
+      target = "DB_PASSWORD"
     }
 
     port {

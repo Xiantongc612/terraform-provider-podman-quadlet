@@ -33,6 +33,16 @@ provider "podman-quadlet" {
   password         = var.password
 }
 
+resource "podman-quadlet_secret" "greeting" {
+  metadata {
+    name = "hello-greeting"
+  }
+
+  spec {
+    value = "Hello from a podman secret"
+  }
+}
+
 resource "podman-quadlet_container" "hello" {
   metadata {
     name        = "hello"
@@ -46,6 +56,12 @@ resource "podman-quadlet_container" "hello" {
       host_ip        = "127.0.0.1"
       host_port      = 18080
       container_port = 80
+    }
+
+    secret {
+      name   = podman-quadlet_secret.greeting.metadata.name
+      type   = "env"
+      target = "GREETING"
     }
   }
 }

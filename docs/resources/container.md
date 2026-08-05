@@ -57,6 +57,7 @@ Optional:
 - `networks` (Set of String)
 - `port` (Block List) (see [below for nested schema](#nestedblock--spec--port))
 - `pull_policy` (String) One of always, missing, newer, or never. Defaults to missing.
+- `secret` (Block List) (see [below for nested schema](#nestedblock--spec--secret))
 - `service` (Block, Optional) (see [below for nested schema](#nestedblock--spec--service))
 - `user` (String)
 - `working_directory` (String)
@@ -99,6 +100,22 @@ Optional:
 - `host_ip` (String)
 - `host_port` (Number)
 - `protocol` (String) One of tcp, udp, or sctp. Defaults to tcp.
+
+
+<a id="nestedblock--spec--secret"></a>
+### Nested Schema for `spec.secret`
+
+Required:
+
+- `name` (String) Name of a managed podman-quadlet_secret.
+
+Optional:
+
+- `gid` (Number) GID of the mounted secret file.
+- `mode` (String) Octal permissions of the mounted secret file.
+- `target` (String) Container mount path or environment variable name.
+- `type` (String) One of mount or env. Defaults to mount.
+- `uid` (Number) UID of the mounted secret file.
 
 
 <a id="nestedblock--spec--service"></a>
