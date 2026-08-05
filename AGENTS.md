@@ -44,3 +44,12 @@ The provider is published on the OpenTofu Registry as
 - Submit the provider and the signing key through the `opentofu/registry` issue
   forms (web UI only; `gh`/API submissions are auto-closed). The tagged release
   must already exist and be valid before submission.
+
+## Current Status
+
+- The `podman-quadlet_secret` resource and container `secret {}` block are
+  implemented; secret values travel over SSH stdin via `remote.RunWithInput`
+  and are never read back.
+- All Dependabot security alerts are resolved (grpc, x/crypto, x/net). The
+  first release is still `v0.1.0`; the real-host gate, GPG key setup, and
+  release automation are pending.

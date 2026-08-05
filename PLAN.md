@@ -1,11 +1,12 @@
 # Plan
 
 The provider is implemented. It exposes typed container, network, and volume
-resources, manages rootless user and rootful system Quadlets over SSH, and
-reconciles their systemd units with ownership protection, drift refresh, and
-import. SSH agent, private-key, and password authentication are supported,
-including `become_password` sudo elevation. The repository, Go module, provider
-type, and address were renamed to `podman-quadlet` on
+Quadlet resources plus a Podman secret resource for credentials, manages
+rootless user and rootful system Quadlets over SSH, and reconciles their
+systemd units with ownership protection, drift refresh, and import. SSH agent,
+private-key, and password authentication are supported, including
+`become_password` sudo elevation. The repository, Go module, provider type, and
+address were renamed to `podman-quadlet` on
 `registry.opentofu.org/xiantongc612/podman-quadlet`.
 
 CI runs `devbox run check` on every pull request and push to `main`. The active
@@ -24,6 +25,8 @@ signing and automation, and the registry submission.
   repository, a semver release, and GPG-signed checksums.
 - Dependency updates merge only after the required `check` status passes;
   semver-patch updates auto-merge, everything else is reviewed.
+- Secret values are stored in OpenTofu state and on the host by Podman; the
+  provider never reads the value back.
 
 ## Dependency Automation Milestone
 
@@ -79,6 +82,32 @@ None.
   module, provider type, address, resources, generated docs, and examples now
   use `podman-quadlet`.
 
+## Secret Resource Milestone
+
+### Approved contracts
+
+- Credentials are stored with Podman secrets (`podman secret create`) and
+  injected into containers through the Quadlet `Secret=` directive.
+- `spec.value` is required and sensitive; it is written over SSH standard
+  input, never appears on the remote command line, and is not read back from
+  the host.
+- The default driver is `file`; the driver and `driver_opts` pass through
+  without a whitelist.
+
+### Remaining work
+
+None.
+
+### Implemented scope
+
+- The `podman-quadlet_secret` resource creates, reads, updates, deletes, and
+  imports Podman secrets, reconciling labels and driver options from
+  `podman secret inspect`.
+- Containers accept a `secret {}` block rendered as the Quadlet `Secret=`
+  directive with `mount` and `env` types.
+- `remote.Client` gained `RunWithInput` so secret values travel over SSH stdin,
+  including through sudo when `become_password` is configured.
+
 ## Long-Term Goals
 
 - Encrypted private keys and jump hosts.
@@ -87,6 +116,5 @@ None.
 
 ## Deferred Design Decisions
 
-- Secret delivery that does not persist values in OpenTofu state.
 - Fleet-wide orchestration beyond Terraform provider aliases.
 - Automatic Podman installation or remote host provisioning.
