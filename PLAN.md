@@ -54,8 +54,9 @@ release tooling, six platform targets (`linux`/`darwin`/`windows` ×
    and password-driven `become_password`). Record the supported Podman version
    range.
 1. **Rename and re-address.** Rename the repository to
-   `terraform-provider-podlet`, update the Go module path, the provider address
-   to `registry.opentofu.org/xiantongc612/podlet`, and all docs and examples.
+   `terraform-provider-podman-quadlet`, update the Go module path, the provider
+   address to `registry.opentofu.org/xiantongc612/podman-quadlet`, and all docs
+   and examples.
 2. **GPG signing key.** Generate a release signing key, store the private key
    in repository Actions secrets, and keep the ASCII-armored public key for the
    registry submission.
@@ -66,7 +67,7 @@ release tooling, six platform targets (`linux`/`darwin`/`windows` ×
 5. **Registry submission.** Submit the provider and the signing key through the
    `opentofu/registry` issue forms (web UI only).
 6. **Verify from the registry.** `tofu init` and apply using
-   `registry.opentofu.org/xiantongc612/podlet`.
+   `registry.opentofu.org/xiantongc612/podman-quadlet`.
 
 ## Before First Release
 
@@ -79,7 +80,7 @@ release tooling, six platform targets (`linux`/`darwin`/`windows` ×
   and delete on those hosts.
 - Establish the supported Podman version range and test the generated Quadlet
   directives against each supported release.
-- Rename the repository to `terraform-provider-podlet` and update provider
+- Rename the repository to `terraform-provider-podman-quadlet` and update provider
   addresses, module paths, documentation, and examples.
 - Add signed release artifacts, checksums, and OpenTofu Registry
   publishing automation.
