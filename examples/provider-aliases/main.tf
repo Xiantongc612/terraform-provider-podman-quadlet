@@ -1,7 +1,7 @@
 terraform {
   required_providers {
-    podlet = {
-      source = "registry.terraform.io/xiantongc612/podlet"
+    podman-quadlet = {
+      source = "registry.opentofu.org/xiantongc612/podman-quadlet"
     }
   }
 }
@@ -17,20 +17,20 @@ variable "user" {
   type = string
 }
 
-provider "podlet" {
+provider "podman-quadlet" {
   alias = "edge_1"
   host  = var.hosts.edge_1
   user  = var.user
 }
 
-provider "podlet" {
+provider "podman-quadlet" {
   alias = "edge_2"
   host  = var.hosts.edge_2
   user  = var.user
 }
 
-resource "podlet_container" "edge_1" {
-  provider = podlet.edge_1
+resource "podman-quadlet_container" "edge_1" {
+  provider = podman-quadlet.edge_1
 
   metadata {
     name = "web"
@@ -41,8 +41,8 @@ resource "podlet_container" "edge_1" {
   }
 }
 
-resource "podlet_container" "edge_2" {
-  provider = podlet.edge_2
+resource "podman-quadlet_container" "edge_2" {
+  provider = podman-quadlet.edge_2
 
   metadata {
     name = "web"

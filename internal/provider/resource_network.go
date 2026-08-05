@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Xiantongc612/podlet-provider/internal/quadlet"
-	"github.com/Xiantongc612/podlet-provider/internal/remote"
+	"github.com/Xiantongc612/terraform-provider-podman-quadlet/internal/quadlet"
+	"github.com/Xiantongc612/terraform-provider-podman-quadlet/internal/remote"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"

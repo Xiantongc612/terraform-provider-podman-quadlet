@@ -1,4 +1,4 @@
-// Package main serves the podlet Terraform provider plugin.
+// Package main serves the podman-quadlet Terraform provider plugin.
 package main
 
 import (
@@ -6,7 +6,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/Xiantongc612/podlet-provider/internal/provider"
+	"github.com/Xiantongc612/terraform-provider-podman-quadlet/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
@@ -21,7 +21,7 @@ func main() {
 		context.Background(),
 		provider.New(version),
 		providerserver.ServeOpts{
-			Address: "registry.terraform.io/xiantongc612/podlet",
+			Address: "registry.opentofu.org/xiantongc612/podman-quadlet",
 			Debug:   debug,
 		},
 	)

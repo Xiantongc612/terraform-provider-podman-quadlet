@@ -30,13 +30,13 @@
         "go test ./..."
       ],
       "build": [
-        "go build -o terraform-provider-podlet ."
+        "go build -o terraform-provider-podman-quadlet ."
       ],
       "docs": [
-        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet"
+        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podman-quadlet"
       ],
       "docs:check": [
-        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet",
+        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podman-quadlet",
         "git diff --exit-code -- docs"
       ],
       "dev": [
@@ -50,8 +50,8 @@
         "go vet ./...",
         "golangci-lint run",
         "go test ./...",
-        "go build -o terraform-provider-podlet .",
-        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podlet",
+        "go build -o terraform-provider-podman-quadlet .",
+        "PATH=\"$PWD/scripts:$PATH\" tfplugindocs generate --provider-name podman-quadlet",
         "git diff --exit-code -- docs",
         "gitleaks git"
       ]

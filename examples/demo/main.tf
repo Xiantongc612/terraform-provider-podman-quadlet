@@ -1,7 +1,7 @@
 terraform {
   required_providers {
-    podlet = {
-      source = "registry.terraform.io/xiantongc612/podlet"
+    podman-quadlet = {
+      source = "registry.opentofu.org/xiantongc612/podman-quadlet"
     }
   }
 }
@@ -26,17 +26,17 @@ variable "password" {
   sensitive = true
 }
 
-provider "podlet" {
+provider "podman-quadlet" {
   host             = var.host
   user             = var.user
   private_key_path = var.private_key_path
   password         = var.password
 }
 
-resource "podlet_container" "hello" {
+resource "podman-quadlet_container" "hello" {
   metadata {
     name        = "hello"
-    description = "Hello from podlet"
+    description = "Hello from podman-quadlet"
   }
 
   spec {

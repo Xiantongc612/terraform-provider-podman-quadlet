@@ -1,4 +1,4 @@
-module github.com/Xiantongc612/podlet-provider
+module github.com/Xiantongc612/terraform-provider-podman-quadlet
 
 go 1.24.0
 

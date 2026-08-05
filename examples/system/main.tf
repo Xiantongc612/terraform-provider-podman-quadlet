@@ -1,7 +1,7 @@
 terraform {
   required_providers {
-    podlet = {
-      source = "registry.terraform.io/xiantongc612/podlet"
+    podman-quadlet = {
+      source = "registry.opentofu.org/xiantongc612/podman-quadlet"
     }
   }
 }
@@ -20,7 +20,7 @@ variable "become_password" {
   sensitive = true
 }
 
-provider "podlet" {
+provider "podman-quadlet" {
   host            = var.host
   user            = var.user
   mode            = "system"
@@ -28,7 +28,7 @@ provider "podlet" {
   become_password = var.become_password
 }
 
-resource "podlet_network" "service" {
+resource "podman-quadlet_network" "service" {
   metadata {
     name = "service"
   }
@@ -38,7 +38,7 @@ resource "podlet_network" "service" {
   }
 }
 
-resource "podlet_container" "service" {
+resource "podman-quadlet_container" "service" {
   metadata {
     name        = "service"
     description = "System-wide web service"
@@ -52,6 +52,6 @@ resource "podlet_container" "service" {
       container_port = 80
     }
 
-    networks = [podlet_network.service.reference]
+    networks = [podman-quadlet_network.service.reference]
   }
 }

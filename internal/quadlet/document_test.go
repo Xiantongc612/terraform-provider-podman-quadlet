@@ -9,7 +9,7 @@ func TestRender(t *testing.T) {
 		Section{Name: "Unit", Pairs: []Pair{{Key: "Description", Value: "Example"}}},
 		Section{Name: "Network", Pairs: []Pair{{Key: "Driver", Value: "bridge"}}},
 	))
-	expected := "# Managed by terraform-provider-podlet\n# Format: 1\n\n" +
+	expected := "# Managed by terraform-provider-podman-quadlet\n# Format: 1\n\n" +
 		"[Unit]\nDescription=Example\n\n[Network]\nDriver=bridge\n"
 	if actual != expected {
 		t.Fatalf("unexpected document:\n%s", actual)

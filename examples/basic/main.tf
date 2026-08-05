@@ -1,7 +1,7 @@
 terraform {
   required_providers {
-    podlet = {
-      source = "registry.terraform.io/xiantongc612/podlet"
+    podman-quadlet = {
+      source = "registry.opentofu.org/xiantongc612/podman-quadlet"
     }
   }
 }
@@ -14,12 +14,12 @@ variable "user" {
   type = string
 }
 
-provider "podlet" {
+provider "podman-quadlet" {
   host = var.host
   user = var.user
 }
 
-resource "podlet_network" "service" {
+resource "podman-quadlet_network" "service" {
   metadata {
     name = "service"
     labels = {
@@ -32,7 +32,7 @@ resource "podlet_network" "service" {
   }
 }
 
-resource "podlet_volume" "data" {
+resource "podman-quadlet_volume" "data" {
   metadata {
     name = "service-data"
   }
@@ -42,7 +42,7 @@ resource "podlet_volume" "data" {
   }
 }
 
-resource "podlet_container" "service" {
+resource "podman-quadlet_container" "service" {
   metadata {
     name        = "service"
     description = "Example web service"
@@ -62,12 +62,12 @@ resource "podlet_container" "service" {
     }
 
     mount {
-      source    = podlet_volume.data.reference
+      source    = podman-quadlet_volume.data.reference
       target    = "/usr/share/nginx/html"
       read_only = true
     }
 
-    networks = [podlet_network.service.reference]
+    networks = [podman-quadlet_network.service.reference]
 
     health_check {
       command  = ["curl", "--fail", "http://localhost/"]

@@ -1,4 +1,4 @@
-// Package provider implements the podlet Terraform provider.
+// Package provider implements the podman-quadlet Terraform provider.
 package provider
 
 import (
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Xiantongc612/podlet-provider/internal/remote"
+	"github.com/Xiantongc612/terraform-provider-podman-quadlet/internal/remote"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	frameworkpath "github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-const typeName = "podlet"
+const typeName = "podman-quadlet"
 
 var _ provider.Provider = (*PodletProvider)(nil)
 

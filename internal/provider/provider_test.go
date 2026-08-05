@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Xiantongc612/podlet-provider/internal/remote"
+	"github.com/Xiantongc612/terraform-provider-podman-quadlet/internal/remote"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -18,8 +18,8 @@ func TestMetadata(t *testing.T) {
 	var resp provider.MetadataResponse
 	New("test")().Metadata(context.Background(), provider.MetadataRequest{}, &resp)
 
-	if resp.TypeName != "podlet" {
-		t.Fatalf("expected provider type podlet, got %q", resp.TypeName)
+	if resp.TypeName != "podman-quadlet" {
+		t.Fatalf("expected provider type podman-quadlet, got %q", resp.TypeName)
 	}
 	if resp.Version != "test" {
 		t.Fatalf("expected provider version test, got %q", resp.Version)
@@ -39,7 +39,7 @@ func TestSchemasAreValid(t *testing.T) {
 	resources := []resource.Resource{newContainerResource(), newNetworkResource(), newVolumeResource()}
 	for _, providerResource := range resources {
 		var metadataResp resource.MetadataResponse
-		providerResource.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "podlet"}, &metadataResp)
+		providerResource.Metadata(ctx, resource.MetadataRequest{ProviderTypeName: "podman-quadlet"}, &metadataResp)
 		var schemaResp resource.SchemaResponse
 		providerResource.Schema(ctx, resource.SchemaRequest{}, &schemaResp)
 		if diagnostics := schemaResp.Schema.ValidateImplementation(ctx); diagnostics.HasError() {

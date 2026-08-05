@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const header = "# Managed by terraform-provider-podlet\n# Format: 1\n"
+const header = "# Managed by terraform-provider-podman-quadlet\n# Format: 1\n"
 
 // Pair is one key-value entry in a Quadlet section.
 type Pair struct {

@@ -41,7 +41,7 @@ terraform.rc
 .dev/
 
 # Go build and test output
-/terraform-provider-podlet
+/terraform-provider-podman-quadlet
 /podlet-provider
 coverage.out
 

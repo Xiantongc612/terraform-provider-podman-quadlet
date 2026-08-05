@@ -31,8 +31,8 @@ for tool in go tofu ssh curl; do
   fi
 done
 
-echo "==> Building terraform-provider-podlet"
-go build -o terraform-provider-podlet .
+echo "==> Building terraform-provider-podman-quadlet"
+go build -o terraform-provider-podman-quadlet .
 
 echo "==> Checking SSH access to $user@$host"
 if [ -n "$password" ]; then
@@ -89,7 +89,7 @@ cp examples/demo/main.tf "$workspace/main.tf"
 cat > "$workspace/demo.tfrc" <<EOF
 provider_installation {
   dev_overrides {
-    "registry.terraform.io/xiantongc612/podlet" = "$repo_root"
+    "registry.opentofu.org/xiantongc612/podman-quadlet" = "$repo_root"
   }
   direct {}
 }
@@ -129,7 +129,7 @@ done
 
 if [ "$served" = true ]; then
   echo
-  echo "==> Hello from your podlet-managed container =="
+  echo "==> Hello from your podman-quadlet-managed container =="
   curl -sf "http://127.0.0.1:${demo_port}/" | sed -n '1,8p'
 else
   echo "warning: container did not respond on port $demo_port" >&2
